@@ -1,0 +1,5488 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  width: 100%;
+  min-height: 100%;
+}
+
+body {
+  font-family: Arial, Helvetica, sans-serif;
+  background: #eef1f4;
+  color: #111827;
+}
+
+button,
+select,
+input,
+textarea {
+  font-family: inherit;
+}
+
+/* =========================================================
+   ALLE EINGABEFELDER
+========================================================= */
+
+input,
+select,
+textarea,
+option {
+  color: #000000 !important;
+  -webkit-text-fill-color: #000000 !important;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #000000 !important;
+  opacity: 0.55;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  color: #000000 !important;
+  -webkit-text-fill-color: #000000 !important;
+}
+
+select option {
+  color: #000000 !important;
+  background: #ffffff;
+}
+
+/* =========================================================
+   APP / HEADER
+========================================================= */
+
+.app {
+  min-height: 100vh;
+  padding: 10px 14px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 7px;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 22px;
+  color: #f7f7f7;
+}
+
+.header p {
+  margin: 2px 0 0;
+  color: #374151;
+  font-size: 13px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.performance {
+  width: 300px;
+  height: 38px;
+  padding: 0 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  background: white;
+  color: #000000 !important;
+  -webkit-text-fill-color: #000000 !important;
+  font-size: 12px;
+}
+
+.add-day-button {
+  height: 38px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 7px;
+  background: #2563eb;
+  color: white !important;
+  -webkit-text-fill-color: white !important;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* =========================================================
+   DAY
+========================================================= */
+
+.day-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+  padding: 7px 11px;
+  border: 1px solid #d8dee6;
+  border-radius: 7px;
+  background: white;
+}
+
+.day-banner > div {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.day-banner strong {
+  font-size: 14px;
+}
+
+.day-banner span {
+  color: #6b7280;
+  font-size: 11px;
+}
+
+.delete-day-button {
+  padding: 5px 8px;
+  border: 1px solid #dc2626;
+  border-radius: 5px;
+  background: white;
+  color: #dc2626 !important;
+  -webkit-text-fill-color: #dc2626 !important;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+/* =========================================================
+   FORMS
+========================================================= */
+
+.performance-form-card,
+.booking-form-card {
+  margin-bottom: 6px;
+  padding: 11px;
+  border: 1px solid #cfd7e2;
+  border-radius: 7px;
+  background: white;
+}
+
+.performance-form-grid {
+  display: grid;
+  grid-template-columns: 150px 140px minmax(180px, 1fr);
+  gap: 8px;
+}
+
+.performance-form-grid label,
+.form-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: #374151;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.performance-form-grid input,
+.form-grid input {
+  width: 100%;
+  height: 32px;
+  padding: 0 7px;
+  border: 1px solid #cbd5e1;
+  border-radius: 5px;
+  background: white;
+  color: #000000 !important;
+  -webkit-text-fill-color: #000000 !important;
+  font-size: 11px;
+}
+
+.form-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 9px;
+}
+
+.form-header h2 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.form-header p {
+  margin: 2px 0 0;
+  color: #6b7280;
+  font-size: 10px;
+}
+
+.close-button {
+  width: 27px;
+  height: 27px;
+  border: none;
+  border-radius: 50%;
+  background: #f1f5f9;
+  color: #374151 !important;
+  -webkit-text-fill-color: #374151 !important;
+  font-size: 17px;
+  cursor: pointer;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(120px, 1fr));
+  gap: 8px;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 9px;
+}
+
+.cancel-button,
+.save-button {
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 5px;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.cancel-button {
+  border: 1px solid #cbd5e1;
+  background: white;
+  color: #374151 !important;
+  -webkit-text-fill-color: #374151 !important;
+}
+
+.save-button {
+  border: none;
+  background: #2563eb;
+  color: white !important;
+  -webkit-text-fill-color: white !important;
+  font-weight: 700;
+}
+
+/* =========================================================
+   BOOKING BAR
+========================================================= */
+
+.new-booking-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+  padding: 7px 11px;
+  border: 1px solid #d8dee6;
+  border-radius: 7px;
+  background: white;
+}
+
+.new-booking-bar > div {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.new-booking-bar strong {
+  font-size: 13px;
+}
+
+.new-booking-bar span {
+  color: #6b7280;
+  font-size: 10px;
+}
+
+.new-booking-button {
+  padding: 6px 10px;
+  border: none;
+  border-radius: 6px;
+  background: #2563eb;
+  color: white !important;
+  -webkit-text-fill-color: white !important;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* =========================================================
+   MESSAGE
+========================================================= */
+
+.message {
+  margin-bottom: 6px;
+  padding: 5px 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 5px;
+  background: white;
+  font-size: 10px;
+}
+
+/* =========================================================
+   MAIN
+========================================================= */
+
+.main-layout {
+  display: grid;
+  grid-template-columns: 195px minmax(0, 1fr) 195px;
+  gap: 8px;
+  align-items: start;
+}
+
+.bookings,
+.details {
+  border: 1px solid #d8dee6;
+  border-radius: 8px;
+  background: white;
+}
+
+.bookings {
+  padding: 10px;
+  max-height: calc(100vh - 175px);
+  overflow-y: auto;
+}
+
+.details {
+  padding: 11px;
+  max-height: calc(100vh - 175px);
+  overflow-y: auto;
+}
+
+/* =========================================================
+   BOOKINGS + SUCHE
+========================================================= */
+
+.bookings-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 7px;
+}
+
+.bookings-title h2,
+.details h2 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.bookings-title span {
+  min-width: 24px;
+  padding: 2px 6px;
+  border-radius: 15px;
+  background: #eef2f7;
+  text-align: center;
+  font-size: 10px;
+  font-weight: bold;
+}
+
+.booking-search {
+  position: relative;
+  margin-bottom: 7px;
+}
+
+.booking-search input {
+  width: 100%;
+  height: 31px;
+  padding: 0 29px 0 9px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #000000 !important;
+  -webkit-text-fill-color: #000000 !important;
+  outline: none;
+  font-size: 10px;
+}
+
+.booking-search input:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.08);
+}
+
+.clear-search {
+  position: absolute;
+  right: 5px;
+  top: 4px;
+
+  width: 23px;
+  height: 23px;
+
+  padding: 0;
+
+  border: none;
+  border-radius: 50%;
+
+  background: #eef2f7;
+
+  color: #374151 !important;
+  -webkit-text-fill-color: #374151 !important;
+
+  font-size: 15px;
+  line-height: 23px;
+
+  cursor: pointer;
+}
+
+.search-result-info {
+  margin: -2px 0 7px;
+  color: #6b7280;
+  font-size: 8px;
+}
+
+.no-search-results {
+  padding: 12px 5px;
+  border-radius: 6px;
+  background: #f8fafc;
+  color: #6b7280;
+  text-align: center;
+  font-size: 9px;
+}
+
+.booking {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-bottom: 6px;
+  padding: 8px;
+  border: 2px solid #d7dde5;
+  border-radius: 7px;
+  background: white;
+  cursor: grab;
+}
+
+.booking strong {
+  font-size: 11px;
+}
+
+.booking span {
+  color: #6b7280;
+  font-size: 9px;
+}
+
+.local-booking {
+  border-color: #93c5fd;
+  background: #f8fbff;
+}
+
+.local-badge {
+  align-self: flex-start;
+  padding: 2px 5px;
+  border-radius: 999px;
+  background: #dbeafe;
+  color: #1d4ed8 !important;
+  -webkit-text-fill-color: #1d4ed8 !important;
+  font-size: 8px !important;
+  font-weight: 700;
+}
+
+.open {
+  color: #b45309 !important;
+  font-weight: bold;
+}
+
+.done {
+  color: #15803d !important;
+  font-weight: bold;
+}
+
+.drag-hint,
+.muted {
+  color: #6b7280;
+  font-size: 9px;
+}
+
+/* =========================================================
+   HALL
+========================================================= */
+
+.hall {
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid #d8dee6;
+  border-radius: 8px;
+  background: #f4f5f6;
+  overflow-x: auto;
+  overflow-y: auto;
+}
+
+.stage,
+.seat-plan {
+  width: 1040px;
+  margin-left: auto;
+  margin-right: auto;
+  flex-shrink: 0;
+}
+
+/* =========================================================
+   BÜHNE
+========================================================= */
+
+.stage {
+  height: 66px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border: 2px solid #686868;
+  background: #fafafa;
+  color: #111827;
+  font-size: 29px;
+  font-weight: bold;
+  letter-spacing: 8px;
+}
+
+/* =========================================================
+   TAGESSTATISTIK
+========================================================= */
+
+.day-statistics {
+  width: 1040px;
+  margin: 6px auto 5px;
+
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+
+  flex-shrink: 0;
+}
+
+.stat-card {
+  min-width: 112px;
+  height: 53px;
+
+  padding: 6px 9px;
+
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-rows: 18px 15px;
+  column-gap: 7px;
+
+  border: 1px solid #d8dee6;
+  border-radius: 7px;
+
+  background: white;
+}
+
+.stat-card span {
+  grid-column: 1;
+  grid-row: 1;
+
+  align-self: center;
+
+  color: #6b7280;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.stat-card strong {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+
+  align-self: center;
+
+  color: #111827;
+  font-size: 20px;
+  line-height: 20px;
+}
+
+.stat-card small {
+  grid-column: 1;
+  grid-row: 2;
+
+  align-self: center;
+
+  color: #9ca3af;
+  font-size: 8px;
+}
+
+.stat-total {
+  border-top: 3px solid #64748b;
+}
+
+.stat-occupied {
+  border-top: 3px solid #2563eb;
+}
+
+.stat-free {
+  border-top: 3px solid #94a3b8;
+}
+
+.stat-paid {
+  border-top: 3px solid #16a34a;
+}
+
+.stat-reserved {
+  border-top: 3px solid #2563eb;
+}
+
+.stat-deposited {
+  border-top: 3px solid #ea580c;
+}
+
+.stat-cancelled {
+  border-top: 3px solid #dc2626;
+}
+
+/* =========================================================
+   SEAT PLAN
+========================================================= */
+
+.seat-plan {
+  margin-top: 4px;
+}
+
+.plan-block {
+  border-top: 2px solid #d4d7db;
+  padding: 2px 0;
+}
+
+.plan-block.first {
+  border-top: none;
+}
+
+/* =========================================================
+   NORMALE REIHEN 1–7
+========================================================= */
+
+.seat-grid-row {
+  height: 75px;
+
+  display: grid;
+
+  grid-template-columns:
+    52px
+    1fr
+    120px
+    1fr
+    52px;
+
+  align-items: center;
+}
+
+.row-number {
+  text-align: center;
+  color: #111827;
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.seat-group {
+  display: grid;
+  grid-template-columns: repeat(6, 52px);
+  gap: 14px;
+}
+
+.seat-grid-row .seat-group:first-of-type {
+  justify-content: end;
+}
+
+.middle-gap {
+  width: 120px;
+}
+
+/* =========================================================
+   SITZ
+========================================================= */
+
+.seat-cell {
+  position: relative;
+
+  width: 52px;
+
+  display: flex;
+  flex-direction: column;
+
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.seat {
+  width: 52px;
+  height: 52px;
+
+  padding: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border: 2px solid #cbd5e1;
+  border-radius: 3px;
+
+  background: #ffffff;
+
+  color: #111111 !important;
+  -webkit-text-fill-color: #111111 !important;
+
+  font-size: 16px;
+  font-weight: 500;
+
+  cursor: pointer;
+}
+
+.seat:hover {
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.seat-free {
+  border-color: #cbd5e1;
+  background: #ffffff;
+}
+
+.seat-reserviert {
+  border-color: #2563eb;
+  background: #dbeafe;
+}
+
+.seat-bezahlt {
+  border-color: #15803d;
+  background: #bbf7d0;
+}
+
+.seat-hinterlegt {
+  border-color: #ea580c;
+  background: #fed7aa;
+}
+
+.seat-storniert {
+  border-color: #dc2626;
+  background: #fecaca;
+}
+
+.seat-tooltip {
+  position: absolute;
+  top: 56px;
+
+  max-width: 60px;
+
+  overflow: hidden;
+
+  white-space: nowrap;
+  text-overflow: ellipsis;
+
+  color: #374151;
+
+  font-size: 8px;
+}
+
+.seat-placeholder {
+  width: 52px;
+  height: 73px;
+}
+
+/* =========================================================
+   UNTERER BLOCK
+========================================================= */
+
+.plan-block.lower {
+  position: relative;
+
+  height: 178px;
+
+  border-top: 2px solid #d4d7db;
+}
+
+/* =========================================================
+   TECHNIK
+========================================================= */
+
+.plan-block.lower .technology {
+  position: absolute;
+
+  left: 35px;
+  top: 7px;
+
+  width: 94px;
+  height: 165px;
+
+  display: flex;
+
+  justify-content: center;
+  align-items: center;
+
+  border: 1px solid #a6a6a6;
+
+  background: #eeeeee;
+
+  color: #222222;
+
+  font-size: 19px;
+
+  z-index: 1;
+}
+
+/* =========================================================
+   REIHE 8
+========================================================= */
+
+.row-eight {
+  position: absolute;
+
+  top: 0;
+  left: 0;
+
+  width: 100%;
+  height: 88px;
+
+  display: grid;
+
+  grid-template-columns:
+    52px
+    125px
+    236px
+    120px
+    390px
+    52px;
+
+  align-items: center;
+
+  z-index: 2;
+}
+
+.row-eight-left {
+  display: grid;
+
+  grid-template-columns:
+    repeat(4, 52px);
+
+  gap: 14px;
+}
+
+.lower-gap {
+  width: 120px;
+}
+
+/* =========================================================
+   REIHE 8 RECHTS
+========================================================= */
+
+.row-eight-right {
+  display: grid;
+
+  grid-template-columns:
+    repeat(6, 52px);
+
+  gap: 14px;
+
+  transform: translateX(46px);
+}
+
+.row-eight > .row-number:last-child {
+  transform: translateX(66px);
+}
+
+/* =========================================================
+   REIHE 9
+========================================================= */
+
+.row-nine {
+  position: absolute;
+
+  top: 88px;
+  left: 0;
+
+  width: 100%;
+  height: 88px;
+
+  display: grid;
+
+  grid-template-columns:
+    52px
+    125px
+    1fr
+    52px;
+
+  align-items: center;
+
+  z-index: 2;
+}
+
+.row-nine-group {
+  display: grid;
+
+  grid-template-columns:
+    repeat(12, 52px);
+
+  gap: 14px;
+
+  margin-left: 0;
+
+  justify-content: start;
+}
+
+/* =========================================================
+   DETAILS
+========================================================= */
+
+.details h2 {
+  margin-bottom: 10px;
+}
+
+.details-line {
+  display: flex;
+
+  justify-content: space-between;
+
+  padding: 7px 0;
+
+  border-bottom: 1px solid #e5e7eb;
+
+  font-size: 10px;
+}
+
+.details-line span {
+  color: #6b7280;
+}
+
+.details hr {
+  margin: 10px 0;
+
+  border: 0;
+
+  border-top: 1px solid #e5e7eb;
+}
+
+.booking-select-label,
+.status-label {
+  display: block;
+
+  margin-bottom: 5px;
+
+  color: #374151;
+
+  font-size: 9px;
+
+  font-weight: 700;
+}
+
+.person-select,
+.status-select {
+  width: 100%;
+  height: 32px;
+
+  padding: 0 6px;
+
+  border: 1px solid #cbd5e1;
+
+  border-radius: 5px;
+
+  background: white;
+
+  color: #000000 !important;
+  -webkit-text-fill-color: #000000 !important;
+
+  font-size: 9px;
+}
+
+.person-select option,
+.status-select option {
+  color: #000000 !important;
+  background: #ffffff;
+}
+
+.assigned-person {
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 2px;
+
+  margin-top: 7px;
+
+  padding: 7px;
+
+  border-radius: 6px;
+
+  background: #f8fafc;
+}
+
+.assigned-person span {
+  color: #6b7280;
+  font-size: 8px;
+}
+
+.assigned-person strong {
+  font-size: 10px;
+}
+
+.status-label {
+  margin-top: 10px;
+}
+
+.free-button {
+  width: 100%;
+  height: 30px;
+
+  margin-top: 7px;
+
+  border: 1px solid #dc2626;
+
+  border-radius: 5px;
+
+  background: white;
+
+  color: #dc2626 !important;
+  -webkit-text-fill-color: #dc2626 !important;
+
+  font-size: 9px;
+
+  cursor: pointer;
+}
+/* =========================================================
+   RECHNUNGEN
+   ========================================================= */
+
+.invoice-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.38);
+}
+
+.invoice-panel {
+  width: min(1080px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  padding: 18px;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  background: #f8fafc;
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.22);
+}
+
+.invoice-panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.invoice-panel-header h2 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.invoice-panel-header p {
+  margin: 3px 0 0;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.invoice-grid {
+  display: grid;
+  grid-template-columns: 1.35fr 1fr;
+  gap: 10px;
+}
+
+.invoice-card {
+  margin-bottom: 10px;
+  padding: 13px;
+  border: 1px solid #d8dee6;
+  border-radius: 9px;
+  background: white;
+}
+
+.invoice-card h3 {
+  margin: 0 0 9px;
+  font-size: 14px;
+}
+
+.invoice-card-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.invoice-card-title > span {
+  min-width: 26px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: #eef2f7;
+  text-align: center;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.invoice-card-title p {
+  margin: 2px 0 0;
+  color: #6b7280;
+  font-size: 10px;
+}
+
+.invoice-search,
+.invoice-booking-select,
+.invoice-field select,
+.invoice-field input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 34px;
+  padding: 0 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: white;
+  color: #000 !important;
+  -webkit-text-fill-color: #000 !important;
+  font-size: 11px;
+}
+
+.invoice-search {
+  margin-bottom: 7px;
+}
+
+.invoice-booking-select {
+  margin-bottom: 8px;
+}
+
+.invoice-booking-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 9px;
+  border: 1px solid #dbeafe;
+  border-radius: 7px;
+  background: #f8fbff;
+}
+
+.invoice-booking-summary strong {
+  font-size: 12px;
+}
+
+.invoice-booking-summary span {
+  color: #475569;
+  font-size: 10px;
+}
+
+.invoice-existing {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 8px;
+  padding: 9px;
+  border: 1px solid #f59e0b;
+  border-radius: 7px;
+  background: #fffbeb;
+}
+
+.invoice-existing strong {
+  color: #92400e;
+  font-size: 11px;
+}
+
+.invoice-existing span {
+  color: #78350f;
+  font-size: 10px;
+}
+
+.invoice-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 9px;
+  color: #374151;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.invoice-preview {
+  margin-top: 0;
+}
+
+.invoice-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.invoice-lines > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 5px 0;
+  color: #475569;
+  font-size: 11px;
+}
+
+.invoice-lines strong {
+  color: #111827;
+}
+
+.invoice-total-line {
+  margin-top: 4px;
+  padding-top: 8px !important;
+  border-top: 1px solid #e2e8f0;
+}
+
+.invoice-gross {
+  font-size: 15px !important;
+}
+
+.invoice-gross strong {
+  font-size: 16px;
+}
+
+.invoice-error,
+.invoice-success {
+  margin-bottom: 9px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+}
+
+.invoice-error {
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.invoice-success {
+  border: 1px solid #bbf7d0;
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.invoice-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 7px;
+  margin-top: 3px;
+}
+
+.invoice-actions .save-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+@media (max-width: 850px) {
+  .invoice-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .invoice-overlay {
+    padding: 10px;
+  }
+
+  .invoice-panel {
+    max-height: calc(100vh - 20px);
+    padding: 12px;
+  }
+}
+
+/* =========================================================
+   RECHNUNGEN – EINSEITIGE, EINFACHE MASKE
+   ========================================================= */
+
+.invoice-stage-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin: 10px 0 8px;
+  padding: 10px 13px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.invoice-stage-toolbar > div {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.invoice-stage-toolbar strong {
+  font-size: 13px;
+  color: #111827;
+}
+
+.invoice-stage-toolbar span {
+  font-size: 10px;
+  color: #64748b;
+}
+
+.invoice-stage-button {
+  min-height: 34px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 6px;
+  background: #111827;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.invoice-stage-button:hover {
+  opacity: 0.9;
+}
+
+.invoice-panel-simple {
+  width: min(1180px, 100%);
+  max-height: calc(100vh - 30px);
+  overflow-y: auto;
+  padding: 20px;
+  background: #f8fafc;
+}
+
+.invoice-kicker {
+  margin-bottom: 3px;
+  color: #2563eb;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.invoice-panel-simple .invoice-panel-header {
+  margin-bottom: 14px;
+}
+
+.invoice-panel-simple .invoice-panel-header h2 {
+  margin: 0;
+  font-size: 22px;
+  color: #111827;
+}
+
+.invoice-panel-simple .invoice-panel-header p {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 11px;
+}
+
+.invoice-section {
+  margin-bottom: 10px;
+  padding: 13px;
+  border: 1px solid #dbe2ea;
+  border-radius: 9px;
+  background: #ffffff;
+}
+
+.invoice-section-heading {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 10px;
+}
+
+.invoice-section-heading > span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #eaf2ff;
+  color: #2563eb;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.invoice-section-heading h3 {
+  margin: 0;
+  color: #111827;
+  font-size: 13px;
+}
+
+.invoice-booking-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.invoice-booking-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.invoice-booking-picker label,
+.invoice-fields-4 label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  color: #374151;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.invoice-booking-picker input,
+.invoice-booking-picker select,
+.invoice-fields-4 input,
+.invoice-fields-4 select,
+.invoice-notes-card textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 35px;
+  padding: 0 9px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #111827;
+  font-size: 11px;
+}
+
+.invoice-customer-card {
+  padding: 11px;
+  border: 1px solid #dbeafe;
+  border-radius: 7px;
+  background: #f8fbff;
+  color: #475569;
+  font-size: 10px;
+  line-height: 1.55;
+}
+
+.invoice-customer-card strong {
+  display: block;
+  margin-bottom: 3px;
+  color: #111827;
+  font-size: 13px;
+}
+
+.invoice-contact {
+  margin-top: 3px;
+}
+
+.invoice-booking-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.invoice-booking-meta span {
+  padding: 3px 6px;
+  border-radius: 5px;
+  background: #eaf2ff;
+  color: #1d4ed8;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.invoice-fields-4 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 9px;
+}
+
+.invoice-existing-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 9px;
+  padding: 8px 10px;
+  border: 1px solid #fbbf24;
+  border-radius: 6px;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 10px;
+}
+
+.invoice-existing-banner strong {
+  font-size: 10px;
+}
+
+.invoice-item-table {
+  border: 1px solid #dbe2ea;
+  border-radius: 7px;
+  overflow: hidden;
+}
+
+.invoice-item-head,
+.invoice-item-row {
+  display: grid;
+  grid-template-columns: 85px 1fr 130px 80px 130px;
+  align-items: center;
+}
+
+.invoice-item-head {
+  min-height: 31px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.invoice-item-row {
+  min-height: 41px;
+  border-top: 1px solid #e2e8f0;
+  color: #334155;
+  font-size: 10px;
+}
+
+.invoice-item-head span,
+.invoice-item-row > * {
+  padding: 0 9px;
+}
+
+.invoice-item-row strong:last-child {
+  text-align: right;
+  color: #111827;
+}
+
+.invoice-bottom-grid {
+  display: grid;
+  grid-template-columns: 0.85fr 1.4fr 0.8fr;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.invoice-status-card,
+.invoice-notes-card,
+.invoice-total-card {
+  padding: 13px;
+  border: 1px solid #dbe2ea;
+  border-radius: 9px;
+  background: #ffffff;
+}
+
+.invoice-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  color: #166534;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.invoice-check input {
+  width: 14px;
+  height: 14px;
+}
+
+.invoice-check-danger {
+  color: #b91c1c;
+}
+
+.invoice-notes-card {
+  position: relative;
+}
+
+.invoice-notes-card textarea {
+  min-height: 94px;
+  padding: 9px;
+  resize: vertical;
+}
+
+.invoice-note-count {
+  margin-top: 3px;
+  text-align: right;
+  color: #94a3b8;
+  font-size: 9px;
+}
+
+.invoice-total-card {
+  background: #f5fcef;
+  border-color: #cce7ba;
+}
+
+.invoice-total-card > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+  color: #475569;
+  font-size: 10px;
+}
+
+.invoice-total-card strong {
+  color: #111827;
+}
+
+.invoice-grand-total {
+  margin-top: 6px;
+  padding-top: 10px !important;
+  border-top: 1px solid #cce7ba;
+}
+
+.invoice-grand-total span {
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.invoice-grand-total strong {
+  color: #15803d;
+  font-size: 19px;
+}
+
+.invoice-create-button {
+  min-width: 180px;
+}
+
+.preview-button {
+  min-height: 36px;
+  padding: 0 15px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #334155;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.preview-button:disabled,
+.invoice-create-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@media (max-width: 900px) {
+  .invoice-booking-row,
+  .invoice-fields-4,
+  .invoice-bottom-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .invoice-item-head,
+  .invoice-item-row {
+    grid-template-columns:
+      65px
+      1fr
+      100px
+      65px
+      100px;
+  }
+
+  .invoice-stage-toolbar > div {
+    flex-direction: column;
+    gap: 2px;
+  }
+}
+
+.invoice-stage-button-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 8px 0 10px;
+}
+
+.invoice-stage-button {
+  min-height: 36px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 7px;
+  background: #111827;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.invoice-stage-button:hover {
+  opacity: 0.9;
+}
+
+
+.booking-invoice-button {
+  min-height: 36px;
+  padding: 0 15px;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #111827;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.booking-invoice-button:hover {
+  border-color: #94a3b8;
+  background: #f8fafc;
+}
+
+
+.bookings-page {
+  min-height: 100vh;
+  background: #f6f7f9;
+  padding: 28px;
+  box-sizing: border-box;
+}
+
+.bookings-page-inner {
+  max-width: 1500px;
+  margin: 0 auto;
+}
+
+.bookings-page-header {
+  display: grid;
+  grid-template-columns: 140px 1fr 180px;
+  gap: 18px;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.bookings-page-title h1 {
+  margin: 0;
+  font-size: 30px;
+  color: #111827;
+}
+
+.bookings-page-title p {
+  margin: 5px 0 0;
+  color: #6b7280;
+}
+
+.bookings-back-button,
+.bookings-secondary-button,
+.bookings-primary-button,
+.bookings-invoice-button {
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.bookings-back-button,
+.bookings-secondary-button {
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #111827;
+}
+
+.bookings-primary-button {
+  border: 0;
+  background: #111827;
+  color: #fff;
+}
+
+.bookings-invoice-button {
+  border: 1px solid #111827;
+  background: #fff;
+  color: #111827;
+}
+
+.bookings-toolbar {
+  display: grid;
+  grid-template-columns: 1fr 330px;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.bookings-toolbar input,
+.bookings-toolbar select,
+.booking-editor input,
+.booking-editor select,
+.booking-editor textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #fff;
+  font: inherit;
+}
+
+.bookings-message {
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: #eef2ff;
+  color: #1e3a8a;
+}
+
+.booking-editor {
+  background: #fff;
+  border: 1px solid #d9dde4;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 18px;
+}
+
+.booking-editor-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.booking-editor-header h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.booking-editor-header p {
+  margin: 5px 0 0;
+  color: #6b7280;
+}
+
+.booking-form-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.booking-form-grid label {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #374151;
+}
+
+.booking-form-wide {
+  grid-column: span 2;
+}
+
+.booking-checkbox {
+  display: flex !important;
+  align-items: center;
+  gap: 9px !important;
+  align-self: end;
+  min-height: 42px;
+}
+
+.booking-checkbox input {
+  width: auto;
+}
+
+.booking-editor-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 18px;
+}
+
+.booking-table-wrap {
+  background: #fff;
+  border: 1px solid #d9dde4;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.booking-table-header,
+.booking-table-row {
+  display: grid;
+  grid-template-columns:
+    0.8fr
+    1.55fr
+    1.35fr
+    0.55fr
+    1.25fr
+    0.9fr
+    1.25fr
+    0.85fr
+    1.3fr;
+  gap: 12px;
+  align-items: center;
+}
+
+.booking-table-header {
+  padding: 12px 14px;
+  background: #edf1f5;
+  border-bottom: 1px solid #d9dde4;
+  font-size: 11px;
+  font-weight: 800;
+  color: #4b5563;
+}
+
+.booking-table-row {
+  padding: 14px;
+  border-bottom: 1px solid #edf0f3;
+  font-size: 12px;
+}
+
+.booking-table-row:last-child {
+  border-bottom: 0;
+}
+
+.booking-table-row strong {
+  display: block;
+  color: #111827;
+}
+
+.booking-table-row small,
+.booking-table-row span {
+  display: block;
+  color: #6b7280;
+  line-height: 1.35;
+}
+
+.booking-table-row small + small {
+  margin-top: 2px;
+}
+
+.booking-status {
+  display: inline-block !important;
+  width: fit-content;
+  padding: 5px 8px;
+  border-radius: 999px;
+  font-weight: 800;
+  color: #111827 !important;
+}
+
+.booking-status-yellow {
+  background: #fef3c7;
+}
+
+.booking-status-blue {
+  background: #dbeafe;
+}
+
+.booking-status-green {
+  background: #dcfce7;
+}
+
+.booking-status-red {
+  background: #fee2e2;
+}
+
+.booking-status-lila {
+  background: #ede9fe;
+}
+
+.booking-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.booking-empty {
+  padding: 40px;
+  text-align: center;
+  color: #6b7280;
+}
+
+@media (max-width: 1100px) {
+  .bookings-page-header {
+    grid-template-columns: 1fr;
+  }
+
+  .bookings-toolbar,
+  .booking-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .booking-form-wide {
+    grid-column: span 1;
+  }
+
+  .booking-table-wrap {
+    overflow-x: auto;
+  }
+
+  .booking-table-header,
+  .booking-table-row {
+    min-width: 1350px;
+  }
+}
+
+
+.booking-seat-choice-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  grid-column: span 2;
+  min-height: 42px;
+}
+
+.bookings-seat-button {
+  border: 1px solid #111827;
+  background: #fff;
+  color: #111827;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.bookings-seat-button:hover:not(:disabled) {
+  background: #f3f4f6;
+}
+
+.bookings-seat-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.booking-selected-summary {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #eef2ff;
+  color: #1e3a8a;
+  font-size: 12px;
+}
+
+.booking-seat-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(15, 23, 42, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  box-sizing: border-box;
+}
+
+.booking-seat-modal {
+  width: min(1500px, 96vw);
+  height: min(900px, 94vh);
+  background: #fff;
+  border-radius: 14px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+}
+
+.booking-seat-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 18px 22px;
+  border-bottom: 1px solid #e5e7eb;
+  flex-shrink: 0;
+}
+
+.booking-seat-modal-header h2 {
+  margin: 0;
+  font-size: 22px;
+  color: #111827;
+}
+
+.booking-seat-modal-header p {
+  margin: 5px 0 0;
+  color: #6b7280;
+}
+
+.booking-seat-summary {
+  display: flex;
+  gap: 8px;
+  padding: 10px 18px;
+  border-bottom: 1px solid #e5e7eb;
+  flex-shrink: 0;
+}
+
+.booking-seat-summary-card {
+  min-width: 90px;
+  padding: 8px 12px;
+  border: 1px solid #d9dde4;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.booking-seat-summary-card span,
+.booking-seat-summary-card small {
+  display: block;
+  color: #6b7280;
+  font-size: 10px;
+}
+
+.booking-seat-summary-card strong {
+  display: block;
+  font-size: 18px;
+  color: #111827;
+}
+
+.booking-seat-summary-selected {
+  border-color: #2563eb;
+  background: #eff6ff;
+}
+
+.booking-seat-content {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 250px;
+  overflow: hidden;
+}
+
+.booking-seat-hall {
+  min-width: 0;
+  overflow: auto;
+  padding: 16px 18px 26px;
+  background: #f5f6f8;
+}
+
+.booking-seat-hall .stage {
+  margin-bottom: 10px;
+}
+
+.booking-seat-hall .day-statistics,
+.booking-seat-hall .header-actions {
+  display: none;
+}
+
+.booking-seat-details {
+  border-left: 1px solid #e5e7eb;
+  padding: 18px;
+  overflow: auto;
+  background: #fff;
+}
+
+.booking-seat-details h3 {
+  margin: 0 0 12px;
+  font-size: 18px;
+}
+
+.booking-seat-details p {
+  color: #6b7280;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.booking-selected-seat-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.booking-selected-seat-chip {
+  width: 100%;
+  text-align: left;
+  border: 1px solid #2563eb;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-radius: 7px;
+  padding: 8px 10px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.booking-seat-legend {
+  margin-top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 12px;
+  color: #4b5563;
+}
+
+.booking-seat-legend > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.legend-box {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: 1px solid #cbd5e1;
+}
+
+.legend-free {
+  background: #fff;
+}
+
+.legend-selected {
+  background: #dbeafe;
+  border-color: #2563eb;
+}
+
+.legend-occupied {
+  background: #e5e7eb;
+}
+
+.booking-seat-modal-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 18px;
+  border-top: 1px solid #e5e7eb;
+  background: #fff;
+  flex-shrink: 0;
+  font-size: 12px;
+}
+
+.booking-seat-selected {
+  background: #dbeafe !important;
+  border-color: #2563eb !important;
+  color: #1d4ed8 !important;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+
+.booking-seat-hall .seat:disabled {
+  cursor: not-allowed;
+}
+
+@media (max-width: 900px) {
+  .booking-seat-modal {
+    width: 98vw;
+    height: 96vh;
+  }
+
+  .booking-seat-content {
+    grid-template-columns: 1fr;
+  }
+
+  .booking-seat-details {
+    border-left: 0;
+    border-top: 1px solid #e5e7eb;
+    max-height: 190px;
+  }
+}
+
+@media (max-width: 700px) {
+  .booking-seat-choice-row {
+    grid-column: span 1;
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .booking-seat-summary {
+    overflow-x: auto;
+  }
+
+  .booking-seat-summary-card {
+    flex-shrink: 0;
+  }
+
+  .booking-seat-modal-header {
+    padding: 12px 14px;
+  }
+
+  .booking-seat-modal-header h2 {
+    font-size: 18px;
+  }
+}
+
+
+.booking-seat-choice-row {
+  grid-column: span 2;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  min-height: 44px;
+}
+
+.booking-seat-choice-row .booking-checkbox {
+  display: flex !important;
+  align-items: center;
+  gap: 8px !important;
+  min-height: auto;
+}
+
+.booking-seat-choice-row .booking-checkbox input {
+  width: auto;
+  margin: 0;
+}
+
+.bookings-seat-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  border: 1px solid #111827;
+  border-radius: 8px;
+  background: #111827;
+  color: #fff;
+  padding: 9px 14px;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.bookings-seat-button:hover:not(:disabled) {
+  background: #263244;
+}
+
+.bookings-seat-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.booking-seat-count {
+  display: inline-flex !important;
+  align-items: center;
+  min-height: 32px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #dbeafe;
+  color: #1d4ed8 !important;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+@media (max-width: 1100px) {
+  .booking-seat-choice-row {
+    grid-column: span 1;
+  }
+}
+
+
+.booking-seat-choice-row {
+  grid-column: 1 / -1 !important;
+  width: 100%;
+  display: flex !important;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.booking-seat-choice-row .booking-checkbox {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 8px !important;
+  margin: 0;
+  min-height: 40px;
+}
+
+.booking-seat-choice-row .booking-checkbox input {
+  width: 16px !important;
+  height: 16px !important;
+  margin: 0;
+}
+
+.bookings-seat-button {
+  display: inline-flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 9px 16px;
+  border: 1px solid #111827;
+  border-radius: 8px;
+  background: #111827;
+  color: #ffffff !important;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.bookings-seat-button:hover {
+  background: #263244;
+}
+
+.booking-seat-count {
+  display: inline-flex !important;
+  align-items: center;
+  min-height: 32px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: #dbeafe;
+  color: #1d4ed8 !important;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+
+.booking-simple-edit-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 15000;
+  background: rgba(15, 23, 42, 0.58);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.booking-simple-edit-modal {
+  width: min(900px, 94vw);
+  max-height: 90vh;
+  overflow-y: auto;
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.3);
+}
+
+.booking-simple-edit-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+  padding: 20px 22px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.booking-simple-edit-header h2 {
+  margin: 0;
+  font-size: 23px;
+  color: #111827;
+}
+
+.booking-simple-edit-header p {
+  margin: 5px 0 0;
+  color: #6b7280;
+}
+
+.booking-simple-edit-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  padding: 22px;
+}
+
+.booking-simple-edit-grid label {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #374151;
+}
+
+.booking-simple-edit-grid input,
+.booking-simple-edit-grid textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #fff;
+  font: inherit;
+}
+
+.booking-simple-edit-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 22px;
+  border-top: 1px solid #e5e7eb;
+}
+
+@media (max-width: 800px) {
+  .booking-simple-edit-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .booking-simple-edit-grid .booking-form-wide {
+    grid-column: span 1;
+  }
+}
+
+
+.booking-edit-seat-plan-button-row {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 0;
+  border-top: 1px solid #e5e7eb;
+  border-bottom: 1px solid #e5e7eb;
+  margin: 4px 0;
+}
+
+.booking-edit-seat-plan-button-row > span {
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.booking-edit-seat-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 17000;
+  background: rgba(15, 23, 42, 0.62);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  box-sizing: border-box;
+}
+
+.booking-edit-seat-modal {
+  width: min(1450px, 96vw);
+  height: min(900px, 94vh);
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 25px 80px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.booking-edit-seat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 18px;
+  padding: 18px 22px;
+  border-bottom: 1px solid #e5e7eb;
+  flex-shrink: 0;
+}
+
+.booking-edit-seat-header h2 {
+  margin: 0;
+  color: #111827;
+  font-size: 23px;
+}
+
+.booking-edit-seat-header p {
+  margin: 4px 0 0;
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.booking-edit-seat-stats {
+  display: flex;
+  gap: 8px;
+  padding: 10px 18px;
+  border-bottom: 1px solid #e5e7eb;
+  flex-shrink: 0;
+}
+
+.booking-edit-seat-stats > div {
+  min-width: 90px;
+  padding: 7px 10px;
+  border: 1px solid #d9dde4;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.booking-edit-seat-stats span {
+  display: block;
+  color: #6b7280;
+  font-size: 10px;
+}
+
+.booking-edit-seat-stats strong {
+  display: block;
+  margin-top: 2px;
+  color: #111827;
+  font-size: 17px;
+}
+
+.booking-edit-seat-body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 250px;
+  overflow: hidden;
+}
+
+.booking-edit-seat-plan {
+  min-width: 0;
+  overflow: auto;
+  padding: 16px;
+  background: #f5f6f8;
+}
+
+.booking-edit-stage {
+  border: 2px solid #6b7280;
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 25px;
+  font-weight: 800;
+  letter-spacing: 7px;
+  background: #fff;
+  margin-bottom: 15px;
+}
+
+.booking-edit-seat-plan-inner {
+  min-width: 850px;
+}
+
+.booking-edit-seat-row {
+  display: grid;
+  grid-template-columns: 35px minmax(300px, 1fr) 60px minmax(300px, 1fr) 35px;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid #d8dce1;
+}
+
+.booking-edit-seat-group {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 10px;
+}
+
+.booking-edit-seat-group-nine {
+  grid-column: 2 / 5;
+}
+
+.booking-edit-seat-middle-gap {
+  min-height: 10px;
+}
+
+.booking-edit-row-number {
+  text-align: center;
+  font-size: 18px;
+  font-weight: 800;
+  color: #111827;
+}
+
+.booking-edit-seat-cell {
+  display: flex;
+  justify-content: center;
+}
+
+.booking-edit-seat {
+  width: 48px;
+  height: 48px;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #111827;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.booking-edit-seat-free:hover {
+  border-color: #2563eb;
+  background: #eff6ff;
+}
+
+.booking-edit-seat-own {
+  background: #dbeafe;
+  border-color: #2563eb;
+  color: #1d4ed8;
+}
+
+.booking-edit-seat-selected {
+  background: #dbeafe;
+  border-color: #2563eb;
+  color: #1d4ed8;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.18);
+}
+
+.booking-edit-seat-occupied {
+  background: #e5e7eb;
+  border-color: #cbd5e1;
+  color: #6b7280;
+  cursor: not-allowed;
+}
+
+.booking-edit-seat-empty {
+  width: 48px;
+  height: 48px;
+}
+
+.booking-edit-seat-sidebar {
+  border-left: 1px solid #e5e7eb;
+  padding: 18px;
+  overflow-y: auto;
+  background: #fff;
+}
+
+.booking-edit-seat-sidebar h3 {
+  margin: 0 0 10px;
+  font-size: 18px;
+}
+
+.booking-edit-seat-sidebar p {
+  color: #6b7280;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.booking-edit-seat-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 18px;
+  font-size: 12px;
+  color: #4b5563;
+}
+
+.booking-edit-seat-legend > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.booking-edit-legend-box {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: 1px solid #cbd5e1;
+}
+
+.booking-edit-legend-box.free {
+  background: #fff;
+}
+
+.booking-edit-legend-box.own {
+  background: #dbeafe;
+  border-color: #2563eb;
+}
+
+.booking-edit-legend-box.occupied {
+  background: #e5e7eb;
+}
+
+.booking-edit-legend-box.selected {
+  background: #dbeafe;
+  border: 2px solid #2563eb;
+}
+
+.booking-edit-selected-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 24px;
+}
+
+.booking-edit-selected-list > strong {
+  font-size: 12px;
+  color: #111827;
+}
+
+.booking-edit-selected-list > span {
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.booking-edit-selected-chip {
+  width: 100%;
+  border: 1px solid #2563eb;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-radius: 7px;
+  padding: 8px 10px;
+  text-align: left;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.booking-edit-seat-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 15px;
+  padding: 12px 18px;
+  border-top: 1px solid #e5e7eb;
+  background: #fff;
+  flex-shrink: 0;
+  font-size: 12px;
+}
+
+.booking-edit-seat-loading {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #6b7280;
+}
+
+@media (max-width: 900px) {
+  .booking-edit-seat-body {
+    grid-template-columns: 1fr;
+  }
+
+  .booking-edit-seat-sidebar {
+    border-left: 0;
+    border-top: 1px solid #e5e7eb;
+    max-height: 220px;
+  }
+}
+
+
+.booking-edit-seat-button-row {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  margin: 3px 0;
+  border-top: 1px solid #e5e7eb;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.booking-edit-seat-button-row span {
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.bookings-seat-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  border: 1px solid #111827;
+  border-radius: 8px;
+  background: #111827;
+  color: #fff;
+  padding: 9px 15px;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.bookings-seat-button:hover {
+  background: #263244;
+}
+
+.booking-seat-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 18000;
+  background: rgba(15, 23, 42, 0.62);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  box-sizing: border-box;
+}
+
+.booking-seat-modal {
+  width: min(1450px, 96vw);
+  height: min(900px, 94vh);
+  background: #fff;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 24px 80px rgba(0,0,0,0.3);
+  display: flex;
+  flex-direction: column;
+}
+
+.booking-seat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 18px;
+  padding: 18px 22px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.booking-seat-header h2 {
+  margin: 0;
+  font-size: 23px;
+  color: #111827;
+}
+
+.booking-seat-header p {
+  margin: 4px 0 0;
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.booking-seat-info {
+  display: flex;
+  gap: 24px;
+  padding: 10px 18px;
+  border-bottom: 1px solid #e5e7eb;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.booking-seat-main {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 240px;
+  overflow: hidden;
+}
+
+.booking-seat-plan {
+  overflow: auto;
+  background: #f5f6f8;
+  padding: 18px;
+  min-width: 0;
+}
+
+.booking-seat-stage {
+  min-height: 58px;
+  border: 2px solid #6b7280;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 25px;
+  font-weight: 800;
+  letter-spacing: 6px;
+  margin-bottom: 16px;
+}
+
+.booking-seat-row {
+  display: grid;
+  grid-template-columns: 32px minmax(300px, 1fr) 55px minmax(300px, 1fr) 32px;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid #d8dce1;
+  min-width: 760px;
+}
+
+.booking-seat-group {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 9px;
+}
+
+.booking-seat-row-number {
+  text-align: center;
+  font-size: 18px;
+  font-weight: 800;
+  color: #111827;
+}
+
+.booking-seat {
+  width: 46px;
+  height: 46px;
+  justify-self: center;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+  color: #111827;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.booking-seat.free:hover {
+  border-color: #2563eb;
+  background: #eff6ff;
+}
+
+.booking-seat.mine {
+  background: #dbeafe;
+  border-color: #2563eb;
+  color: #1d4ed8;
+}
+
+.booking-seat.selected {
+  background: #dbeafe;
+  border: 2px solid #2563eb;
+  color: #1d4ed8;
+}
+
+.booking-seat.occupied {
+  background: #e5e7eb;
+  color: #6b7280;
+  cursor: not-allowed;
+}
+
+.booking-seat-empty {
+  width: 46px;
+  height: 46px;
+}
+
+.booking-seat-sidebar {
+  border-left: 1px solid #e5e7eb;
+  padding: 18px;
+  overflow-y: auto;
+}
+
+.booking-seat-sidebar h3 {
+  margin: 0 0 10px;
+}
+
+.booking-seat-sidebar p {
+  color: #6b7280;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.booking-seat-legend {
+  margin-top: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  font-size: 12px;
+  color: #4b5563;
+}
+
+.booking-seat-legend div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.legend-free,
+.legend-mine,
+.legend-occupied {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: 1px solid #cbd5e1;
+}
+
+.legend-free {
+  background: #fff;
+}
+
+.legend-mine {
+  background: #dbeafe;
+  border-color: #2563eb;
+}
+
+.legend-occupied {
+  background: #e5e7eb;
+}
+
+.booking-seat-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 15px;
+  padding: 12px 18px;
+  border-top: 1px solid #e5e7eb;
+  background: #fff;
+}
+
+.booking-seat-loading {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #6b7280;
+}
+
+@media (max-width: 850px) {
+  .booking-seat-main {
+    grid-template-columns: 1fr;
+  }
+
+  .booking-seat-sidebar {
+    border-left: 0;
+    border-top: 1px solid #e5e7eb;
+    max-height: 180px;
+  }
+}
+
+
+.booking-seat-plan-open-button {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 0;
+  margin: 2px 0 4px;
+  border-top: 1px solid #e5e7eb;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.booking-seat-plan-open-button span {
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.bookings-seat-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 9px 15px;
+  border: 1px solid #111827;
+  border-radius: 8px;
+  background: #111827;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.bookings-seat-button:hover {
+  background: #263244;
+}
+
+
+.booking-inline-open-seatplan {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 0;
+  margin: 2px 0 4px;
+  border-top: 1px solid #e5e7eb;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.booking-inline-open-seatplan span {
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.booking-inline-seat-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 25000;
+  background: rgba(15, 23, 42, 0.68);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  box-sizing: border-box;
+}
+
+.booking-inline-seat-modal {
+  width: min(1450px, 96vw);
+  height: min(900px, 94vh);
+  background: #fff;
+  border-radius: 14px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 25px 80px rgba(0, 0, 0, 0.34);
+}
+
+.booking-inline-seat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 18px;
+  padding: 18px 22px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.booking-inline-seat-header h2 {
+  margin: 0;
+  font-size: 23px;
+  color: #111827;
+}
+
+.booking-inline-seat-header p {
+  margin: 5px 0 0;
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.booking-inline-seat-info {
+  padding: 10px 20px;
+  border-bottom: 1px solid #e5e7eb;
+  color: #4b5563;
+  font-size: 12px;
+}
+
+.booking-inline-seat-body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 250px;
+  overflow: hidden;
+}
+
+.booking-inline-seat-plan {
+  min-width: 0;
+  overflow: auto;
+  padding: 18px;
+  background: #f5f6f8;
+}
+
+.booking-inline-stage {
+  min-height: 60px;
+  border: 2px solid #6b7280;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 25px;
+  font-weight: 800;
+  letter-spacing: 6px;
+  margin-bottom: 14px;
+}
+
+.booking-inline-seat-row {
+  display: grid;
+  grid-template-columns:
+    34px
+    minmax(300px, 1fr)
+    60px
+    minmax(300px, 1fr)
+    34px;
+  gap: 8px;
+  align-items: center;
+  min-width: 780px;
+  padding: 8px 0;
+  border-bottom: 1px solid #d8dce1;
+}
+
+.booking-inline-seat-group {
+  display: grid;
+  grid-template-columns:
+    repeat(6, minmax(42px, 1fr));
+  gap: 9px;
+}
+
+.booking-inline-seat-gap {
+  min-height: 1px;
+}
+
+.booking-inline-row-number {
+  text-align: center;
+  font-size: 18px;
+  font-weight: 800;
+  color: #111827;
+}
+
+.booking-inline-seat {
+  width: 46px;
+  height: 46px;
+  justify-self: center;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+  color: #111827;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.booking-inline-seat-free:hover {
+  border-color: #2563eb;
+  background: #eff6ff;
+}
+
+.booking-inline-seat-mine {
+  background: #dbeafe;
+  border-color: #2563eb;
+  color: #1d4ed8;
+}
+
+.booking-inline-seat-selected {
+  background: #dbeafe;
+  border: 2px solid #2563eb;
+  color: #1d4ed8;
+}
+
+.booking-inline-seat-occupied {
+  background: #e5e7eb;
+  border-color: #d1d5db;
+  color: #6b7280;
+  cursor: not-allowed;
+}
+
+.booking-inline-seat-empty {
+  width: 46px;
+  height: 46px;
+}
+
+.booking-inline-seat-sidebar {
+  border-left: 1px solid #e5e7eb;
+  padding: 18px;
+  overflow-y: auto;
+}
+
+.booking-inline-seat-sidebar h3 {
+  margin: 0 0 10px;
+  color: #111827;
+}
+
+.booking-inline-seat-sidebar p {
+  color: #6b7280;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.booking-inline-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin-top: 20px;
+  font-size: 12px;
+}
+
+.booking-inline-legend div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.inline-legend-free,
+.inline-legend-mine,
+.inline-legend-occupied {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: 1px solid #cbd5e1;
+}
+
+.inline-legend-free {
+  background: #fff;
+}
+
+.inline-legend-mine {
+  background: #dbeafe;
+  border-color: #2563eb;
+}
+
+.inline-legend-occupied {
+  background: #e5e7eb;
+}
+
+.booking-inline-seat-actions {
+  margin-top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 12px;
+  color: #4b5563;
+}
+
+.booking-inline-seat-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 18px;
+  border-top: 1px solid #e5e7eb;
+  background: #fff;
+}
+
+.booking-inline-seat-loading {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #6b7280;
+}
+
+@media (max-width: 900px) {
+  .booking-inline-seat-body {
+    grid-template-columns: 1fr;
+  }
+
+  .booking-inline-seat-sidebar {
+    border-left: 0;
+    border-top: 1px solid #e5e7eb;
+    max-height: 190px;
+  }
+}
+
+
+.booking-open-seatplan-row {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid #e5e7eb;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.booking-open-seatplan-row span {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.bookings-seat-button {
+  min-height: 40px;
+  padding: 9px 15px;
+  border: 1px solid #111827;
+  border-radius: 8px;
+  background: #111827;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.bookings-seat-button:hover {
+  background: #263244;
+}
+
+.booking-plan-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 30000;
+  background: rgba(15, 23, 42, 0.68);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  box-sizing: border-box;
+}
+
+.booking-plan-modal {
+  width: min(1450px, 96vw);
+  height: min(900px, 94vh);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 25px 80px rgba(0, 0, 0, 0.34);
+}
+
+.booking-plan-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 22px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.booking-plan-header h2 {
+  margin: 0;
+  font-size: 23px;
+}
+
+.booking-plan-header p {
+  margin: 5px 0 0;
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.booking-plan-summary {
+  padding: 10px 20px;
+  border-bottom: 1px solid #e5e7eb;
+  color: #4b5563;
+  font-size: 12px;
+}
+
+.booking-plan-content {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 240px;
+  overflow: hidden;
+}
+
+.booking-plan-main {
+  min-width: 0;
+  overflow: auto;
+  padding: 18px;
+  background: #f5f6f8;
+}
+
+.booking-plan-stage {
+  min-height: 60px;
+  margin-bottom: 15px;
+  border: 2px solid #6b7280;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 25px;
+  font-weight: 800;
+  letter-spacing: 6px;
+}
+
+.booking-plan-row {
+  display: grid;
+  grid-template-columns: 34px minmax(300px, 1fr) 55px minmax(300px, 1fr) 34px;
+  gap: 8px;
+  align-items: center;
+  min-width: 780px;
+  padding: 8px 0;
+  border-bottom: 1px solid #d8dce1;
+}
+
+.booking-plan-seat-group {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(42px, 1fr));
+  gap: 9px;
+}
+
+.booking-plan-row-number {
+  text-align: center;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.booking-plan-seat {
+  width: 46px;
+  height: 46px;
+  justify-self: center;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.booking-plan-seat-free:hover {
+  background: #eff6ff;
+  border-color: #2563eb;
+}
+
+.booking-plan-seat-mine {
+  background: #dbeafe;
+  border-color: #2563eb;
+  color: #1d4ed8;
+}
+
+.booking-plan-seat-selected {
+  background: #dbeafe;
+  border: 2px solid #2563eb;
+  color: #1d4ed8;
+}
+
+.booking-plan-seat-occupied {
+  background: #e5e7eb;
+  color: #6b7280;
+  cursor: not-allowed;
+}
+
+.booking-plan-seat-empty {
+  width: 46px;
+  height: 46px;
+}
+
+.booking-plan-sidebar {
+  border-left: 1px solid #e5e7eb;
+  padding: 18px;
+  overflow-y: auto;
+}
+
+.booking-plan-sidebar h3 {
+  margin: 0 0 15px;
+}
+
+.booking-plan-sidebar p {
+  margin-top: 20px;
+  color: #6b7280;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.booking-plan-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  font-size: 12px;
+}
+
+.booking-plan-legend div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.booking-plan-legend-free,
+.booking-plan-legend-mine,
+.booking-plan-legend-occupied {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: 1px solid #cbd5e1;
+}
+
+.booking-plan-legend-free {
+  background: #fff;
+}
+
+.booking-plan-legend-mine {
+  background: #dbeafe;
+  border-color: #2563eb;
+}
+
+.booking-plan-legend-occupied {
+  background: #e5e7eb;
+}
+
+.booking-plan-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 18px;
+  border-top: 1px solid #e5e7eb;
+  background: #fff;
+}
+
+.booking-plan-loading {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #6b7280;
+}
+
+@media (max-width: 900px) {
+  .booking-plan-content {
+    grid-template-columns: 1fr;
+  }
+
+  .booking-plan-sidebar {
+    border-left: 0;
+    border-top: 1px solid #e5e7eb;
+    max-height: 190px;
+  }
+}
+
+
+.booking-edit-options-row {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 12px 0;
+  border-top: 1px solid #e5e7eb;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.booking-edit-checkbox {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 8px !important;
+  min-height: 40px;
+  margin: 0;
+}
+
+.booking-edit-checkbox input {
+  width: 16px !important;
+  height: 16px !important;
+  margin: 0;
+}
+
+.booking-edit-hint {
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.booking-simple-edit-grid select {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #fff;
+  font: inherit;
+}
+
+.booking-simple-edit-grid select:focus,
+.booking-simple-edit-grid input:focus,
+.booking-simple-edit-grid textarea:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow:
+    0 0 0 2px rgba(37, 99, 235, 0.12);
+}
+
+
+.booking-plan-row-8 {
+  padding-top: 14px;
+  padding-bottom: 14px;
+}
+
+.booking-plan-row-9 {
+  padding-top: 14px;
+  padding-bottom: 14px;
+}
+
+.booking-plan-seat-group-8-left {
+  grid-template-columns:
+    repeat(4, minmax(42px, 1fr));
+}
+
+.booking-plan-seat-group-8-right {
+  grid-template-columns:
+    repeat(6, minmax(42px, 1fr));
+}
+
+.booking-plan-seat-group-9 {
+  grid-template-columns:
+    repeat(6, minmax(42px, 1fr));
+}
+
+
+/* =========================================================
+   BEARBEITUNGS-SAALPLAN – UNTERER BEREICH
+   exakt entsprechend der bestehenden Bühne
+   ========================================================= */
+
+.booking-plan-lower {
+  position: relative;
+  display: grid;
+  grid-template-columns:
+    40px
+    92px
+    minmax(260px, 1fr)
+    48px
+    minmax(300px, 1fr)
+    40px;
+  grid-template-rows: 72px 72px;
+  column-gap: 8px;
+  row-gap: 0;
+  min-width: 900px;
+  border-bottom: 1px solid #d8dce1;
+}
+
+.booking-plan-lower-number {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 800;
+  color: #111827;
+}
+
+.booking-plan-technik {
+  grid-column: 2;
+  grid-row: 1 / 3;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border: 1px solid #9ca3af;
+  background: #f3f4f6;
+
+  color: #111827;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.booking-plan-row8-left {
+  grid-column: 3;
+  grid-row: 1;
+
+  display: grid;
+  grid-template-columns:
+    repeat(4, minmax(42px, 1fr));
+
+  align-items: center;
+  justify-items: center;
+  gap: 10px;
+}
+
+.booking-plan-lower-gap {
+  grid-column: 4;
+  grid-row: 1;
+}
+
+.booking-plan-row8-right {
+  grid-column: 5;
+  grid-row: 1;
+
+  display: grid;
+  grid-template-columns:
+    repeat(6, minmax(42px, 1fr));
+
+  align-items: center;
+  justify-items: center;
+  gap: 10px;
+}
+
+.booking-plan-lower-number:nth-of-type(5) {
+  grid-column: 6;
+  grid-row: 1;
+}
+
+.booking-plan-row9 {
+  grid-column: 3 / 6;
+  grid-row: 2;
+
+  display: grid;
+  grid-template-columns:
+    repeat(12, minmax(42px, 1fr));
+
+  align-items: center;
+  justify-items: center;
+  gap: 10px;
+}
+
+.booking-plan-lower-number:nth-of-type(6) {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.booking-plan-lower-number:nth-of-type(7) {
+  grid-column: 6;
+  grid-row: 2;
+}
+
+/*
+ * Sitzplatzbuttons im unteren Bereich
+ * exakt gleich groß wie oben.
+ */
+
+.booking-plan-lower .booking-plan-seat {
+  width: 46px;
+  height: 46px;
+}
+
+/*
+ * Reihe 9 bekommt keinen zusätzlichen Seitenabstand.
+ * Dadurch läuft die 12er-Reihe sauber durch.
+ */
+
+.booking-plan-row9 .booking-plan-seat {
+  width: 46px;
+  height: 46px;
+}
+
+
+/*
+ * WICHTIG:
+ * Der Bearbeitungssaalplan benutzt dieselben Layoutklassen
+ * wie die Hauptbühne.
+ */
+
+.booking-plan-main {
+  min-width: 0;
+  overflow: auto;
+  padding: 18px;
+  background: #f5f6f8;
+}
+
+/* Die vorhandene Bühnenbreite wird verwendet. */
+.booking-plan-main .stage,
+.booking-plan-main .seat-plan {
+  width: 1040px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Exakt dieselbe Bühne */
+.booking-plan-main .stage {
+  height: 66px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border: 2px solid #686868;
+  background: #fafafa;
+  color: #111827;
+  font-size: 29px;
+  font-weight: bold;
+  letter-spacing: 8px;
+}
+
+/* Exakt dieselbe Struktur für den unteren Bereich */
+.booking-plan-main .plan-block.lower {
+  position: relative;
+  height: 178px;
+  border-top: 2px solid #d4d7db;
+}
+
+.booking-plan-main .plan-block.lower .technology {
+  position: absolute;
+  left: 35px;
+  top: 7px;
+  width: 94px;
+  height: 165px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border: 1px solid #a6a6a6;
+  background: #eeeeee;
+  color: #222222;
+  font-size: 19px;
+  z-index: 1;
+}
+
+/*
+ * Keine separate "booking-plan-row"-Darstellung mehr.
+ * Die vorhandenen .seat-grid-row / .lower-row / .row-eight /
+ * .row-nine Regeln der Bühne übernehmen die Geometrie.
+ */
+.booking-plan-main .seat-grid-row,
+.booking-plan-main .lower-row {
+  width: 100%;
+}
+
+
+.seat-booking-selected {
+  outline: 3px solid #111827 !important;
+  outline-offset: 2px;
+}
+
+.booking-plan-lower {
+  display: grid;
+  grid-template-columns: 52px 100px minmax(0, 1fr) 24px minmax(0, 1fr) 52px;
+  grid-template-rows: 82px 82px;
+  align-items: center;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.booking-plan-row8-left,
+.booking-plan-row8-right,
+.booking-plan-row9 {
+  display: grid;
+  align-items: center;
+  min-width: 0;
+}
+
+.booking-plan-row8-left {
+  grid-column: 3;
+  grid-row: 1;
+  grid-template-columns: repeat(4, 52px);
+  gap: 14px;
+}
+
+.booking-plan-row8-right {
+  grid-column: 5;
+  grid-row: 1;
+  grid-template-columns: repeat(6, 52px);
+  gap: 14px;
+}
+
+.booking-plan-row9 {
+  grid-column: 3 / 6;
+  grid-row: 2;
+  grid-template-columns: repeat(12, 52px);
+  gap: 12px;
+}
+
+.booking-plan-lower .booking-plan-seat {
+  width: 52px;
+  min-width: 52px;
+  height: 52px;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.booking-plan-lower .booking-plan-technik {
+  grid-column: 2;
+  grid-row: 1 / 3;
+  height: 100%;
+  min-height: 140px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+/* =========================================================
+   TISCHSAAL – VORLAGE 2
+========================================================= */
+
+.tischsaal-wrapper {
+  width: 100%;
+  min-width: 920px;
+  box-sizing: border-box;
+  padding: 24px;
+  background: #f4f5f6;
+}
+
+.tischsaal-plan {
+  position: relative;
+  width: 100%;
+  max-width: 1080px;
+  aspect-ratio: 1.55;
+  margin: 0 auto;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid #d7dbe0;
+  border-radius: 18px;
+}
+
+/* Hallenwände */
+.tischsaal-wall {
+  position: absolute;
+  border: 3px solid #202020;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.wall-outer {
+  width: 92%;
+  height: 93%;
+  left: 4%;
+  top: 2%;
+  transform: rotate(-4deg);
+}
+
+.wall-middle {
+  width: 82%;
+  height: 86%;
+  left: 9%;
+  top: 7%;
+  transform: rotate(-5deg);
+}
+
+.wall-inner {
+  width: 74%;
+  height: 78%;
+  left: 14%;
+  top: 12%;
+  transform: rotate(-7deg);
+}
+
+/* Bühne */
+.tischsaal-stage {
+  position: absolute;
+  left: 43%;
+  top: 42%;
+  width: 110px;
+  height: 76px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 3px solid #111;
+  background: #fff;
+  transform: rotate(45deg);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.tischsaal-stage::first-line {
+  transform: rotate(-45deg);
+}
+
+/* Eingang */
+.tischsaal-entrance {
+  position: absolute;
+  right: 4%;
+  top: 38%;
+  width: 48px;
+  height: 126px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 3px solid #111;
+  background: #fff;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  font-size: 17px;
+  font-weight: 700;
+  box-sizing: border-box;
+}
+
+/* Tisch */
+.tischsaal-table {
+  position: absolute;
+  width: 72px;
+  height: 72px;
+  transform: translate(-50%, -50%);
+  z-index: 5;
+}
+
+.tischsaal-table-circle {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 54px;
+  height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: #050505;
+  color: #fff;
+  font-size: 18px;
+  font-weight: 800;
+  z-index: 3;
+}
+
+/* 10 Plätze um jeden Tisch */
+.tischsaal-seat {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #111;
+  border-radius: 50%;
+  background: #fff;
+  color: #111;
+  font-size: 8px;
+  font-weight: 700;
+  cursor: pointer;
+  z-index: 4;
+  transition: transform 0.12s ease, background 0.12s ease;
+}
+
+.tischsaal-seat:hover {
+  transform: translate(-50%, -50%) scale(1.15);
+}
+
+.tischsaal-seat.selected {
+  background: #111;
+  color: #fff;
+}
+
+.tischsaal-info {
+  width: min(1080px, 100%);
+  margin: 12px auto 0;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+  font-size: 14px;
+  color: #374151;
+}
+
+.tischsaal-info strong {
+  color: #111827;
+}
+
+
+/* =========================================================
+   TISCHSAAL – RAUMKONTUR / STREIFEN
+========================================================= */
+
+.tischsaal-room-lines {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.tischsaal-room-lines path {
+  fill: none;
+  stroke: #111;
+  stroke-width: 3;
+  vector-effect: non-scaling-stroke;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Alte elliptische Wandlinien vollständig deaktivieren */
+.tischsaal-wall {
+  display: none !important;
+}
+
+
+/* =========================================================
+   TISCHSAAL – EXAKTE RAUMKONTUR + INTERAKTIVE PLÄTZE
+========================================================= */
+
+.tischsaal-wrapper {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 24px;
+  background: #f4f5f6;
+}
+
+.tischsaal-plan {
+  position: relative;
+  width: 100%;
+  max-width: 1080px;
+  aspect-ratio: 865 / 644;
+  margin: 0 auto;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid #d7dbe0;
+  border-radius: 18px;
+}
+
+/* SVG nur für die feste Raumform */
+.tischsaal-reference {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.tischsaal-reference path {
+  fill: none;
+  stroke: #111;
+  stroke-width: 3;
+  vector-effect: non-scaling-stroke;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Bühne */
+.tischsaal-stage {
+  position: absolute;
+  left: 43.5%;
+  top: 43%;
+  width: 112px;
+  height: 78px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 3px solid #111;
+  background: #fff;
+  transform: translate(-50%, -50%) rotate(45deg);
+  color: #111;
+  font-size: 18px;
+  font-weight: 700;
+  z-index: 3;
+}
+
+/* damit der Text trotz gedrehter Bühne lesbar bleibt */
+.tischsaal-stage {
+  line-height: 1;
+}
+
+.tischsaal-entrance {
+  position: absolute;
+  right: 4.5%;
+  top: 44%;
+  width: 48px;
+  height: 126px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 3px solid #111;
+  background: #fff;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  font-size: 17px;
+  font-weight: 700;
+  color: #111;
+  box-sizing: border-box;
+  z-index: 3;
+}
+
+/* Tisch */
+.tischsaal-table {
+  position: absolute;
+  width: 76px;
+  height: 76px;
+  transform: translate(-50%, -50%);
+  z-index: 5;
+}
+
+/* Schwarzer Tischkreis */
+.tischsaal-table-circle {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 58px;
+  height: 58px;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #050505;
+  color: #fff;
+  font-size: 18px;
+  font-weight: 800;
+  z-index: 3;
+}
+
+/* Die Plätze bleiben vollständig interaktiv */
+.tischsaal-seat {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #111;
+  border-radius: 50%;
+  background: #fff;
+  color: #111;
+  font-size: 8px;
+  font-weight: 700;
+  cursor: pointer;
+  z-index: 4;
+  box-sizing: border-box;
+  transition:
+    transform 0.12s ease,
+    background 0.12s ease,
+    color 0.12s ease;
+}
+
+.tischsaal-seat:hover {
+  transform: translate(-50%, -50%) scale(1.15);
+}
+
+.tischsaal-seat.selected {
+  background: #111;
+  color: #fff;
+}
+
+.tischsaal-info {
+  width: min(1080px, 100%);
+  margin: 12px auto 0;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+  font-size: 14px;
+  color: #374151;
+}
+
+.tischsaal-info strong {
+  color: #111827;
+}
+
+
+/* =========================================================
+   TISCHSAAL – ORIGINALBILD + INTERAKTIVE PLÄTZE
+========================================================= */
+
+.tischsaal-bild-wrapper {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 24px;
+  background: #f4f5f6;
+}
+
+.tischsaal-bild-plan {
+  position: relative;
+  width: 100%;
+  max-width: 1080px;
+  aspect-ratio: 865 / 644;
+  margin: 0 auto;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid #d7dbe0;
+  border-radius: 18px;
+}
+
+/*
+ * Das Originalbild ist die komplette Raumgrafik.
+ * Dadurch bleiben die Streifen exakt wie in deiner Vorlage.
+ */
+.tischsaal-original-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: fill;
+  user-select: none;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/*
+ * Ebene für die interaktiven Plätze.
+ */
+.tischsaal-seat-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+}
+
+/*
+ * Unsichtbarer Mittelpunkt je Tisch.
+ */
+.tischsaal-table-overlay {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+/*
+ * Diese Buttons sind die echten interaktiven Sitze.
+ */
+.tischsaal-place-button {
+  position: absolute;
+
+  width: 22px;
+  height: 22px;
+
+  padding: 0;
+
+  transform: translate(-50%, -50%);
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border: 2px solid #111;
+  border-radius: 50%;
+
+  background: #fff;
+  color: #111;
+
+  font-size: 8px;
+  line-height: 1;
+  font-weight: 700;
+
+  cursor: pointer;
+
+  box-sizing: border-box;
+
+  pointer-events: auto;
+
+  z-index: 10;
+
+  transition:
+    transform 0.12s ease,
+    background 0.12s ease,
+    color 0.12s ease,
+    box-shadow 0.12s ease;
+}
+
+.tischsaal-place-button:hover {
+  transform: translate(-50%, -50%) scale(1.16);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+}
+
+.tischsaal-place-button.selected {
+  background: #111;
+  color: #fff;
+}
+
+/*
+ * Infozeile unter dem Plan.
+ */
+.tischsaal-bild-info {
+  width: min(1080px, 100%);
+  margin: 12px auto 0;
+
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+
+  font-size: 14px;
+  color: #374151;
+}
+
+.tischsaal-bild-info strong {
+  color: #111827;
+}
+
+
+/* =========================================================
+   TISCHSAAL – SAUBERE VERSION
+========================================================= */
+
+.tischsaal-clean-wrapper {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 24px;
+  background: #f4f5f6;
+}
+
+.tischsaal-clean-plan {
+  position: relative;
+  width: 100%;
+  max-width: 1080px;
+  aspect-ratio: 865 / 644;
+  margin: 0 auto;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid #d7dbe0;
+  border-radius: 18px;
+}
+
+/* Bühne */
+.tischsaal-clean-stage {
+  position: absolute;
+  left: 45%;
+  top: 43%;
+  width: 112px;
+  height: 78px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border: 2px solid #111;
+  background: #fff;
+
+  transform: translate(-50%, -50%) rotate(45deg);
+
+  color: #111;
+  font-size: 18px;
+  font-weight: 700;
+
+  z-index: 2;
+}
+
+/* Eingang */
+.tischsaal-clean-entrance {
+  position: absolute;
+  right: 5%;
+  top: 43%;
+
+  width: 48px;
+  height: 126px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border: 2px solid #111;
+  background: #fff;
+
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+
+  color: #111;
+  font-size: 17px;
+  font-weight: 700;
+
+  box-sizing: border-box;
+
+  z-index: 2;
+}
+
+/*
+ * Tischcontainer
+ */
+.tischsaal-clean-table {
+  position: absolute;
+
+  width: 86px;
+  height: 86px;
+
+  transform: translate(-50%, -50%);
+
+  z-index: 5;
+}
+
+/*
+ * Größerer schwarzer Tischkreis.
+ */
+.tischsaal-clean-table-circle {
+  position: absolute;
+
+  left: 50%;
+  top: 50%;
+
+  width: 56px;
+  height: 56px;
+
+  transform: translate(-50%, -50%);
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 50%;
+
+  background: #050505;
+  color: #fff;
+
+  font-size: 19px;
+  font-weight: 800;
+
+  z-index: 3;
+}
+
+/*
+ * Sitzplätze.
+ */
+.tischsaal-clean-seat {
+  position: absolute;
+
+  width: 22px;
+  height: 22px;
+
+  padding: 0;
+
+  transform: translate(-50%, -50%);
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border: 2px solid #111;
+  border-radius: 50%;
+
+  background: #fff;
+  color: #111;
+
+  font-size: 8px;
+  line-height: 1;
+  font-weight: 700;
+
+  cursor: pointer;
+
+  box-sizing: border-box;
+
+  transition:
+    transform 0.12s ease,
+    background 0.12s ease,
+    color 0.12s ease,
+    box-shadow 0.12s ease;
+}
+
+.tischsaal-clean-seat:hover {
+  transform: translate(-50%, -50%) scale(1.14);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+}
+
+.tischsaal-clean-seat.selected {
+  background: #111;
+  color: #fff;
+}
+
+/*
+ * Info
+ */
+.tischsaal-clean-info {
+  width: min(1080px, 100%);
+
+  margin: 12px auto 0;
+
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+
+  font-size: 14px;
+  color: #374151;
+}
+
+.tischsaal-clean-info strong {
+  color: #111827;
+}
+
+
+.tischsaal-original-image { display: none !important; }
+
+.tischsaal-bild-wrapper { display: none !important; }
+
+.tischsaal-bild-plan { display: none !important; }
+
+.tischsaal-bild-info { display: none !important; }
+
+.tischsaal-reference { display: none !important; }
+
+/* =========================================================
+   TISCHSAAL – STATISTIK
+========================================================= */
+
+.tischsaal-statistics {
+  align-items: stretch;
+  flex-wrap: wrap;
+}
+
+.tischsaal-stat-summary {
+  min-height: 66px;
+  padding: 10px 18px;
+
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+
+  border: 1px solid #d9dee7;
+  border-radius: 10px;
+  background: #fff;
+
+  box-sizing: border-box;
+}
+
+.tischsaal-stat-summary strong {
+  color: #111827;
+  font-size: 16px;
+}
+
+.tischsaal-stat-summary span {
+  margin-top: 3px;
+  color: #6b7280;
+  font-size: 12px;
+}
+
+
+/* Tischsaal: dieselben Statusfarben wie Bühnensaal */
+
+.tischsaal-clean-seat.seat-free {
+  background: #ffffff !important;
+  border-color: #111827 !important;
+  color: #111827 !important;
+}
+
+.tischsaal-clean-seat.seat-reserviert {
+  background: #dbeafe !important;
+  border-color: #2563eb !important;
+  color: #111827 !important;
+}
+
+.tischsaal-clean-seat.seat-bezahlt {
+  background: #bbf7d0 !important;
+  border-color: #15803d !important;
+  color: #111827 !important;
+}
+
+.tischsaal-clean-seat.seat-hinterlegt {
+  background: #fed7aa !important;
+  border-color: #ea580c !important;
+  color: #111827 !important;
+}
+
+.tischsaal-clean-seat.seat-storniert {
+  background: #fecaca !important;
+  border-color: #dc2626 !important;
+  color: #111827 !important;
+}
+
+
+/* ------------------------------------------------------
+   Sitzplatzverwaltung:
+   Nur die beiden oberen Verwaltungsbereiche ausblenden.
+   Die dahinterliegenden Funktionen bleiben erhalten.
+   ------------------------------------------------------ */
+
+.app .new-booking-bar {
+  display: none !important;
+}
+
+/*
+ * Der Vorstellungstag-Bereich direkt vor
+ * "Buchungen für ..."
+ */
+.app > main > .performance-list {
+  display: none !important;
+}
+
+
+/* Überschrift "Buchungen" in der Sitzplatzverwaltung */
+.bookings-title,
+.bookings-title h2 {
+  color: #000 !important;
+}
+
+
+.booking-seat-preview {
+  grid-column: 1 / -1;
+  margin: 8px 0 14px;
+  padding: 14px;
+  border: 1px solid #d8dee8;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.booking-seat-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  color: #172033;
+}
+
+.booking-seat-preview-header span {
+  font-size: 13px;
+  color: #64748b;
+}
+
+.booking-seat-preview-plan {
+  width: 100%;
+  min-height: 520px;
+  overflow: hidden;
+}
+
+
+.booking-seat-choice-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.booking-seat-inline-statistics {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 13px;
+  border: 1px solid #d8dee8;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #334155;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.booking-seat-inline-statistics strong {
+  color: #111827;
+}
+
+
+
+/* =========================================================
+   BOOKING SEAT PICKER – WIE HAUPT-SAALPLAN
+========================================================= */
+
+.booking-plan-modal {
+  max-height: 92vh;
+  overflow: hidden;
+}
+
+.booking-plan-content {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.booking-plan-main {
+  min-height: 0;
+  overflow: auto;
+  padding: 18px;
+}
+
+.booking-plan-seat {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+}
+
+.booking-plan-lower {
+  position: static !important;
+  margin-top: 8px;
+  height: auto !important;
+}
+
+.booking-plan-row8-left,
+.booking-plan-row8-right,
+.booking-plan-row9 {
+  position: static !important;
+}
+
+.booking-plan-stage {
+  margin-bottom: 8px;
+}
+
+
+/* =========================================================
+   BUCHUNGSSAALPLAN – FINALER LAYOUT-FIX
+   Eine einzige eindeutige Darstellung für den Plan
+========================================================= */
+
+/* Modal darf nichts über seinen eigenen Kopf hinausragen */
+.booking-plan-modal {
+  position: relative !important;
+  display: flex !important;
+  flex-direction: column !important;
+  height: min(900px, 94vh) !important;
+  max-height: 94vh !important;
+  overflow: hidden !important;
+}
+
+/* Der eigentliche Inhalt ist der einzige scrollbare Bereich */
+.booking-plan-content {
+  position: relative !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 240px !important;
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+
+/* Hauptplan normal von oben nach unten */
+.booking-plan-main {
+  position: relative !important;
+  display: block !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  height: 100% !important;
+  overflow: auto !important;
+  padding: 18px !important;
+  box-sizing: border-box !important;
+}
+
+/* Bühne bleibt oben */
+.booking-plan-stage {
+  position: relative !important;
+  top: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: auto !important;
+  transform: none !important;
+  width: 1040px !important;
+  max-width: 100% !important;
+  margin: 0 auto 15px !important;
+  box-sizing: border-box !important;
+}
+
+/* Normale Reihen 1–9 */
+.booking-plan-row,
+.booking-plan-row-8,
+.booking-plan-row-9 {
+  position: relative !important;
+  display: grid !important;
+  top: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: auto !important;
+  transform: none !important;
+  width: 1040px !important;
+  min-width: 1040px !important;
+  height: auto !important;
+  min-height: 62px !important;
+  margin: 0 auto !important;
+  padding: 8px 0 !important;
+  box-sizing: border-box !important;
+}
+
+/* Falls noch der alte Lower-Container im JSX verwendet wird:
+   Er wird sauber unter Reihe 7 einsortiert. */
+.booking-plan-lower {
+  position: relative !important;
+  display: grid !important;
+  top: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: auto !important;
+  transform: none !important;
+  float: none !important;
+  clear: both !important;
+  width: 1040px !important;
+  min-width: 1040px !important;
+  height: 164px !important;
+  min-height: 164px !important;
+  margin: 12px auto 0 !important;
+  padding: 0 !important;
+  box-sizing: border-box !important;
+}
+
+/* Keine absolute Positionierung mehr auf den unteren Elementen */
+.booking-plan-lower-number,
+.booking-plan-technik,
+.booking-plan-row8-left,
+.booking-plan-row8-right,
+.booking-plan-row9,
+.booking-plan-lower-gap {
+  position: relative !important;
+  top: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: auto !important;
+  transform: none !important;
+}
+
+/* Die Sitzgruppen bleiben innerhalb ihres Containers */
+.booking-plan-row8-left,
+.booking-plan-row8-right,
+.booking-plan-row9 {
+  align-items: center !important;
+}
+
+/* Sitznummern immer sichtbar */
+.booking-plan-seat {
+  position: relative !important;
+  z-index: 2 !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+/* Sidebar darf nicht in den Plan hineinragen */
+.booking-plan-sidebar {
+  position: relative !important;
+  min-height: 0 !important;
+  overflow: auto !important;
+  z-index: 5 !important;
+}
+
+/* Header und Footer bleiben über dem Plan */
+.booking-plan-header,
+.booking-plan-summary,
+.booking-plan-footer {
+  position: relative !important;
+  z-index: 20 !important;
+  flex-shrink: 0 !important;
+}
+
+
+/* =========================================================
+   BUCHUNGS-SAALPLAN – FESTE REIHENFOLGE
+========================================================= */
+
+.booking-plan-main {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+}
+
+/* Bühne */
+.booking-plan-main > .booking-plan-stage {
+  order: 0 !important;
+  flex: 0 0 auto !important;
+}
+
+/* Reihen 1–7 */
+.booking-plan-main > .booking-plan-row:not(.booking-plan-row-8):not(.booking-plan-row-9) {
+  order: 1 !important;
+  flex: 0 0 auto !important;
+}
+
+/* Reihe 8 */
+.booking-plan-main > .booking-plan-row-8 {
+  order: 2 !important;
+  flex: 0 0 auto !important;
+  margin-top: 8px !important;
+}
+
+/* Reihe 9 */
+.booking-plan-main > .booking-plan-row-9 {
+  order: 3 !important;
+  flex: 0 0 auto !important;
+  margin-top: 8px !important;
+}
+
+/* Keine Überlagerung */
+.booking-plan-main > .booking-plan-row,
+.booking-plan-main > .booking-plan-row-8,
+.booking-plan-main > .booking-plan-row-9 {
+  position: relative !important;
+  transform: none !important;
+  top: auto !important;
+  left: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+}
+
+
+/* =========================================================
+   FINAL: BUCHUNGS-SAALPLAN NORMAL VON OBEN NACH UNTEN
+========================================================= */
+
+/* Das Fenster selbst bleibt fest */
+.booking-plan-modal {
+  height: min(900px, 94vh) !important;
+  max-height: 94vh !important;
+  overflow: hidden !important;
+}
+
+/* Nur der mittlere Bereich scrollt */
+.booking-plan-content {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 240px !important;
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+
+/* Hauptbereich mit vertikalem Scroll */
+.booking-plan-main {
+  display: block !important;
+  position: relative !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  height: 100% !important;
+  overflow-x: auto !important;
+  overflow-y: auto !important;
+  padding: 18px !important;
+  box-sizing: border-box !important;
+}
+
+/* Der eigentliche Plan läuft ganz normal untereinander */
+.booking-plan-main > * {
+  position: relative !important;
+  top: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: auto !important;
+  transform: none !important;
+  float: none !important;
+}
+
+/* Bühne */
+.booking-plan-main > .booking-plan-stage {
+  width: 1040px !important;
+  min-width: 1040px !important;
+  margin: 0 auto 15px auto !important;
+}
+
+/* Alle normalen Reihen */
+.booking-plan-main > .booking-plan-row {
+  width: 1040px !important;
+  min-width: 1040px !important;
+  min-height: 62px !important;
+  margin: 0 auto !important;
+  box-sizing: border-box !important;
+}
+
+/* Reihe 8 */
+.booking-plan-main > .booking-plan-row-8 {
+  width: 1040px !important;
+  min-width: 1040px !important;
+  margin: 8px auto 0 auto !important;
+  box-sizing: border-box !important;
+}
+
+/* Reihe 9 */
+.booking-plan-main > .booking-plan-row-9 {
+  width: 1040px !important;
+  min-width: 1040px !important;
+  margin: 8px auto 0 auto !important;
+  box-sizing: border-box !important;
+}
+
+/* Falls der alte Lower-Container noch irgendwo vorhanden ist:
+   auch er darf nur normal im Dokumentfluss stehen. */
+.booking-plan-main .booking-plan-lower {
+  position: relative !important;
+  top: auto !important;
+  left: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  transform: none !important;
+  float: none !important;
+  clear: both !important;
+  width: 1040px !important;
+  min-width: 1040px !important;
+  height: auto !important;
+  min-height: 164px !important;
+  margin: 8px auto 0 auto !important;
+}
+
+/* Die Kinder dürfen nicht mehr außerhalb des Plans springen */
+.booking-plan-main .booking-plan-row8-left,
+.booking-plan-main .booking-plan-row8-right,
+.booking-plan-main .booking-plan-row9 {
+  position: relative !important;
+  top: auto !important;
+  left: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  transform: none !important;
+}
+
+/* Header und Footer bleiben außerhalb des Scrollbereichs */
+.booking-plan-header,
+.booking-plan-summary,
+.booking-plan-footer {
+  flex-shrink: 0 !important;
+  position: relative !important;
+  z-index: 20 !important;
+}
+
+
+/* =========================================================
+   BUCHUNGS-SAALPLAN – UNTERER BÜHNENBLOCK
+   exakt wie im Hauptsaal
+========================================================= */
+
+.booking-lower-wrapper {
+  position: relative !important;
+  width: 100% !important;
+  height: 176px !important;
+  min-height: 176px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border-top: 2px solid #d4d7db !important;
+  box-sizing: border-box !important;
+}
+
+/*
+ * Wichtig:
+ * .row-eight und .row-nine sind bereits exakt wie
+ * im Hauptsaal aufgebaut:
+ *
+ * row-eight -> top: 0
+ * row-nine  -> top: 88px
+ *
+ * Sie bekommen hier nur ihren richtigen Bezugspunkt:
+ * den booking-lower-wrapper.
+ */
+
+.booking-lower-wrapper .row-eight {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 88px !important;
+}
+
+.booking-lower-wrapper .row-nine {
+  position: absolute !important;
+  top: 88px !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 88px !important;
+}
+
+/* Die Sitzgruppen bleiben exakt in ihrer Hauptsaal-Geometrie. */
+
+.booking-lower-wrapper .row-eight-left {
+  display: grid !important;
+  grid-template-columns: repeat(4, 52px) !important;
+  gap: 14px !important;
+}
+
+.booking-lower-wrapper .row-eight-right {
+  display: grid !important;
+  grid-template-columns: repeat(6, 52px) !important;
+  gap: 14px !important;
+  transform: translateX(46px) !important;
+}
+
+.booking-lower-wrapper .row-nine-group {
+  display: grid !important;
+  grid-template-columns: repeat(12, 52px) !important;
+  gap: 14px !important;
+  margin-left: 0 !important;
+  justify-content: start !important;
+}
+
+/* Keine zusätzliche Positionierung innerhalb des Wrappers. */
+
+.booking-lower-wrapper .row-eight,
+.booking-lower-wrapper .row-nine,
+.booking-lower-wrapper .row-eight-left,
+.booking-lower-wrapper .row-eight-right,
+.booking-lower-wrapper .row-nine-group {
+  float: none !important;
+  clear: none !important;
+}
+
+
+.booking-delete-button {
+  border: 1px solid #dc2626;
+  background: #fff;
+  color: #b91c1c;
+  border-radius: 6px;
+  padding: 9px 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.booking-delete-button:hover:not(:disabled) {
+  background: #fef2f2;
+}
+
+.booking-delete-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+
+/* =========================================================
+   BUCHUNGSSAALPLAN – UNTERER BLOCK WIE BÜHNENSAAL
+========================================================= */
+
+.booking-lower-wrapper {
+  position: relative !important;
+  width: 100% !important;
+  height: 178px !important;
+  min-height: 178px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border-top: 2px solid #d4d7db !important;
+  box-sizing: border-box !important;
+}
+
+/* Technik-Kasten wie im funktionierenden Hauptsaal */
+.booking-lower-wrapper > .booking-plan-technik {
+  position: absolute !important;
+  top: 7px !important;
+  left: 35px !important;
+  width: 94px !important;
+  height: 165px !important;
+
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  box-sizing: border-box !important;
+
+  border: 1px solid #a6a6a6 !important;
+  background: #eeeeee !important;
+  color: #222222 !important;
+
+  font-size: 19px !important;
+  z-index: 1 !important;
+}
+
+/*
+ * Reihe 8 und 9 übernehmen exakt die Geometrie
+ * der vorhandenen Bühnenansicht.
+ */
+
+.booking-lower-wrapper > .row-eight {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+
+  width: 100% !important;
+  height: 88px !important;
+
+  display: grid !important;
+
+  grid-template-columns:
+    52px
+    125px
+    236px
+    120px
+    390px
+    52px !important;
+
+  align-items: center !important;
+  z-index: 2 !important;
+}
+
+.booking-lower-wrapper > .row-nine {
+  position: absolute !important;
+  top: 88px !important;
+  left: 0 !important;
+
+  width: 100% !important;
+  height: 88px !important;
+
+  display: grid !important;
+
+  grid-template-columns:
+    52px
+    125px
+    1fr
+    52px !important;
+
+  align-items: center !important;
+  z-index: 2 !important;
+}
+
+/* Reihe 8 links */
+.booking-lower-wrapper .row-eight-left {
+  display: grid !important;
+  grid-template-columns: repeat(4, 52px) !important;
+  gap: 14px !important;
+}
+
+/* Mitte */
+.booking-lower-wrapper .lower-gap {
+  width: 120px !important;
+}
+
+/* Reihe 8 rechts */
+.booking-lower-wrapper .row-eight-right {
+  display: grid !important;
+  grid-template-columns: repeat(6, 52px) !important;
+  gap: 14px !important;
+  transform: translateX(46px) !important;
+}
+
+/* Rechte Reihennummer */
+.booking-lower-wrapper
+  .row-eight > .row-number:last-child {
+  transform: translateX(66px) !important;
+}
+
+/* Reihe 9 */
+.booking-lower-wrapper .row-nine-group {
+  display: grid !important;
+  grid-template-columns: repeat(12, 52px) !important;
+  gap: 14px !important;
+  margin-left: 0 !important;
+  justify-content: start !important;
+}
+
+/* Sitzgröße */
+.booking-lower-wrapper .seat {
+  width: 52px !important;
+  height: 52px !important;
+  box-sizing: border-box !important;
+}
+
+
+/* =========================================================
+   BUCHUNGSSAALPLAN – FEINSCHLIFF
+========================================================= */
+
+/* Unterer Block optisch ruhiger */
+.booking-lower-wrapper {
+  height: 178px !important;
+  min-height: 178px !important;
+  border-top: 1px solid #d4d7db !important;
+}
+
+/* Technik sauber und optisch mittig */
+.booking-lower-wrapper > .booking-plan-technik {
+  top: 8px !important;
+  left: 35px !important;
+  width: 94px !important;
+  height: 162px !important;
+
+  border: 1px solid #b8bcc2 !important;
+  background: #eeeeee !important;
+  color: #222222 !important;
+
+  font-size: 18px !important;
+  font-weight: 600 !important;
+}
+
+/* Reihe 8 */
+.booking-lower-wrapper > .row-eight {
+  top: 0 !important;
+  height: 88px !important;
+}
+
+/* Reihe 9 */
+.booking-lower-wrapper > .row-nine {
+  top: 88px !important;
+  height: 88px !important;
+}
+
+/* Sitze optisch exakt gleich */
+.booking-lower-wrapper .seat {
+  width: 52px !important;
+  height: 52px !important;
+  min-width: 52px !important;
+
+  margin: 0 !important;
+}
+
+/* Reihe 8 links */
+.booking-lower-wrapper .row-eight-left {
+  gap: 14px !important;
+}
+
+/* Reihe 8 rechts */
+.booking-lower-wrapper .row-eight-right {
+  gap: 14px !important;
+  transform: translateX(46px) !important;
+}
+
+/* Reihe 9 */
+.booking-lower-wrapper .row-nine-group {
+  gap: 14px !important;
+}
+
+/* Reihennummern */
+.booking-lower-wrapper .row-number {
+  font-size: 19px !important;
+  font-weight: 800 !important;
+}
+
+/* Kein unnötiger Abstand unter Reihe 9 */
+.booking-lower-wrapper .row-nine {
+  margin-bottom: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+
+/* =========================================================
+   BOOKING-SAALPLAN – EXAKTE BÜHNENPLAN-BREITE
+========================================================= */
+
+/*
+ * Der Buchungsdialog benutzt für den Bühnensaal
+ * dieselbe feste Planbreite wie die normale
+ * Sitzplanverwaltung.
+ */
+
+.booking-plan-main {
+  overflow-x: auto !important;
+  overflow-y: auto !important;
+}
+
+/* Der komplette Bühnenplan bekommt eine feste Geometrie. */
+.booking-plan-main > .booking-plan-stage,
+.booking-plan-main > .seat-grid-row,
+.booking-plan-main > .booking-lower-wrapper {
+  width: 1040px !important;
+  min-width: 1040px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+/* Normale Reihen exakt gleich breit */
+.booking-plan-main > .seat-grid-row {
+  box-sizing: border-box !important;
+}
+
+/* Unterer Bereich exakt auf dieselbe Breite */
+.booking-plan-main > .booking-lower-wrapper {
+  box-sizing: border-box !important;
+}
+
+/* Technik bleibt an der gleichen X-Position wie im Hauptsaal */
+.booking-lower-wrapper > .booking-plan-technik {
+  left: 35px !important;
+}
+
+/* Untere Sitzreihen bleiben exakt in der Bühnengeometrie */
+.booking-lower-wrapper > .row-eight,
+.booking-lower-wrapper > .row-nine {
+  width: 100% !important;
+}
+
+/* Kein Stretching der Sitzgruppen */
+.booking-lower-wrapper .row-eight-left,
+.booking-lower-wrapper .row-eight-right,
+.booking-lower-wrapper .row-nine-group {
+  flex-shrink: 0 !important;
+}
+
+/* Gleicher Abstand der Sitze wie im Hauptsaal */
+.booking-lower-wrapper .row-eight-left,
+.booking-lower-wrapper .row-eight-right,
+.booking-lower-wrapper .row-nine-group {
+  gap: 14px !important;
+}
+

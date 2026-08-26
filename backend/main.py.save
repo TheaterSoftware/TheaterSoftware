@@ -1,0 +1,842 @@
+uvicorn main:app --host 127.0.0.1 --port 8000
+
+
+
+from datetime import date, time
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+import psycopg
+
+
+app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://127.0.0.1:5173",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:5173",
+        "http://127.0.0.1:5174",
+        "http://localhost:5174",
+        "http://127.0.0.1:5175",
+        "http://localhost:5175",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+DB_CONFIG = "dbname=theater"
+
+VALID_STATUSES = {
+    "reserviert",
+    "bezahlt",
+    "hinterlegt",
+    "storniert",
+}
+
+
+class PerformanceCreate(BaseModel):
+    title: str
+    performance_date: date
+    start_time: time
+
+
+class BookingCreate(BaseModel):
+    first_name: str
+    last_name: str
+    email: str = ""
+    phone: str = ""
+    ticket_count: int
+    ticket_price: float
+    service_fee: float = 0.0
+    performance_id: int = 1
+
+
+class SeatAssignmentCreate(BaseModel):
+    performance_id: int
+    seat_id: int
+    booking_id: int
+
+
+class AssignmentStatusUpdate(BaseModel):
+    status: str
+
+
+@app.get("/")
+def root():
+    return {"status": "ok"}
+
+
+# ============================================================
+# VORSTELLUNGEN
+# ============================================================
+
+@app.get("/api/performances")
+def get_performances():
+    with psycopg.connect(DB_CONFIG) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                    id,
+                    title,
+                    performance_date,
+                    start_time,
+                    created_at
+                FROM performances
+                ORDER BY
+                    performance_date ASC,
+                    start_time ASC,
+                    id ASC
+                """
+            )
+
+            rows = cur.fetchall()
+
+    return [
+        {
+            "id": row[0],
+            "title": row[1],
+            "performance_date": row[2].isoformat(),
+            "start_time": row[3].isoformat(),
+            "created_at": row[4].isoformat() if row[4] else None,
+        }
+        for row in rows
+    ]
+
+
+@app.get("/api/performances/{performance_id}")
+def get_performance(performance_id: int):
+    with psycopg.connect(DB_CONFIG) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                    id,
+                    title,
+                    performance_date,
+                    start_time,
+                    created_at
+                FROM performances
+                WHERE id = %s
+                """,
+                (performance_id,),
+            )
+
+            row = cur.fetchone()
+
+    if not row:
+        raise HTTPException(
+            status_code=404,
+            detail="Vorstellung nicht gefunden.",
+        )
+
+    return {
+        "id": row[0],
+        "title": row[1],
+        "performance_date": row[2].isoformat(),
+        "start_time": row[3].isoformat(),
+        "created_at": row[4].isoformat() if row[4] else None,
+    }
+
+
+@app.post("/api/performances")
+def create_performance(data: PerformanceCreate):
+    if not data.title.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Titel fehlt.",
+        )
+
+    with psycopg.connect(DB_CONFIG) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO performances (
+                    title,
+                    performance_date,
+                    start_time
+                )
+                VALUES (%s, %s, %s)
+                RETURNING
+                    id,
+                    title,
+                    performance_date,
+                    start_time,
+                    created_at
+                """,
+                (
+                    data.title.strip(),
+                    data.performance_date,
+                    data.start_time,
+                ),
+            )
+
+            row = cur.fetchone()
+            conn.commit()
+
+    return {
+        "success": True,
+        "performance": {
+            "id": row[0],
+            "title": row[1],
+            "performance_date": row[2].isoformat(),
+            "start_time": row[3].isoformat(),
+            "created_at": row[4].isoformat() if row[4] else None,
+        },
+    }
+
+
+@app.delete("/api/performances/{performance_id}")
+def delete_performance(performance_id: int):
+    with psycopg.connect(DB_CONFIG) as conn:
+        with conn.cursor() as cur:
+
+            cur.execute(
+                """
+                SELECT id
+                FROM performances
+                WHERE id = %s
+                """,
+                (performance_id,),
+            )
+
+            if not cur.fetchone():
+                raise HTTPException(
+                    status_code=404,
+                    detail="Vorstellung nicht gefunden.",
+                )
+
+            cur.execute(
+                """
+                SELECT COUNT(*)
+                FROM bookings
+                WHERE performance_id = %s
+                """,
+                (performance_id,),
+            )
+
+            booking_count = cur.fetchone()[0]
+
+            if booking_count > 0:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        "Diese Vorstellung kann nicht gelöscht "
+                        "werden, weil noch Buchungen vorhanden sind."
+                    ),
+                )
+
+            cur.execute(
+                """
+                SELECT COUNT(*)
+                FROM seat_assignments
+                WHERE performance_id = %s
+                """,
+                (performance_id,),
+            )
+
+            assignment_count = cur.fetchone()[0]
+
+            if assignment_count > 0:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        "Diese Vorstellung kann nicht gelöscht "
+                        "werden, weil noch Sitzplatz-Zuweisungen vorhanden sind."
+                    ),
+                )
+
+            cur.execute(
+                """
+                DELETE FROM performances
+                WHERE id = %s
+                """,
+                (performance_id,),
+            )
+
+            conn.commit()
+
+    return {
+        "success": True,
+    }
+
+
+# ============================================================
+# SITZPLÄTZE
+# ============================================================
+
+@app.get("/api/seats")
+def get_seats():
+    with psycopg.connect(DB_CONFIG) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                    id,
+                    row_number,
+                    seat_number,
+                    side,
+                    is_active
+                FROM seats
+                ORDER BY
+                    row_number,
+                    seat_number
+                """
+            )
+
+            rows = cur.fetchall()
+
+    return [
+        {
+            "id": row[0],
+            "row_number": row[1],
+            "seat_number": row[2],
+            "side": row[3],
+            "is_active": row[4],
+        }
+        for row in rows
+    ]
+
+
+# ============================================================
+# BUCHUNGEN
+# ============================================================
+
+@app.get("/api/bookings")
+def get_bookings(performance_id: int = 1):
+    with psycopg.connect(DB_CONFIG) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                    b.id,
+                    b.booking_number,
+                    c.first_name,
+                    c.last_name,
+                    c.email,
+                    c.phone,
+                    b.performance_id,
+                    b.ticket_count,
+                    b.ticket_price,
+                    b.service_fee,
+                    b.status
+                FROM bookings b
+                JOIN customers c
+                    ON c.id = b.customer_id
+                WHERE b.performance_id = %s
+                ORDER BY b.id DESC
+                """,
+                (performance_id,),
+            )
+
+            rows = cur.fetchall()
+
+    return [
+        {
+            "id": row[0],
+            "booking_number": row[1],
+            "first_name": row[2],
+            "last_name": row[3],
+            "email": row[4] or "",
+            "phone": row[5] or "",
+            "performance_id": row[6],
+            "ticket_count": row[7],
+            "ticket_price": float(row[8]),
+            "service_fee": float(row[9]),
+            "status": row[10],
+        }
+        for row in rows
+    ]
+
+
+@app.post("/api/bookings")
+def create_booking(data: BookingCreate):
+    if not data.first_name.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Vorname fehlt.",
+        )
+
+    if not data.last_name.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Nachname fehlt.",
+        )
+
+    if data.ticket_count < 1:
+        raise HTTPException(
+            status_code=400,
+            detail="Mindestens ein Platz muss angegeben werden.",
+        )
+
+    if data.ticket_price < 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Der Ticketpreis darf nicht negativ sein.",
+        )
+
+    if data.service_fee < 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Die Servicegebühr darf nicht negativ sein.",
+        )
+
+    with psycopg.connect(DB_CONFIG) as conn:
+        with conn.cursor() as cur:
+
+            cur.execute(
+                """
+                SELECT id
+                FROM performances
+                WHERE id = %s
+                """,
+                (data.performance_id,),
+            )
+
+            if not cur.fetchone():
+                raise HTTPException(
+                    status_code=404,
+                    detail="Vorstellung nicht gefunden.",
+                )
+
+            cur.execute(
+                """
+                SELECT id
+                FROM customers
+                WHERE
+                    LOWER(first_name) = LOWER(%s)
+                    AND LOWER(last_name) = LOWER(%s)
+                    AND COALESCE(email, '') = %s
+                LIMIT 1
+                """,
+                (
+                    data.first_name.strip(),
+                    data.last_name.strip(),
+                    data.email.strip(),
+                ),
+            )
+
+            customer = cur.fetchone()
+
+            if customer:
+                customer_id = customer[0]
+
+                cur.execute(
+                    """
+                    UPDATE customers
+                    SET
+                        phone = %s,
+                        email = %s
+                    WHERE id = %s
+                    """,
+                    (
+                        data.phone.strip(),
+                        data.email.strip(),
+                        customer_id,
+                    ),
+                )
+
+            else:
+                cur.execute(
+                    """
+                    INSERT INTO customers (
+                        first_name,
+                        last_name,
+                        email,
+                        phone
+                    )
+                    VALUES (%s, %s, %s, %s)
+                    RETURNING id
+                    """,
+                    (
+                        data.first_name.strip(),
+                        data.last_name.strip(),
+                        data.email.strip(),
+                        data.phone.strip(),
+                    ),
+                )
+
+                customer_id = cur.fetchone()[0]
+
+            cur.execute(
+                """
+                SELECT COALESCE(MAX(id), 0)
+                FROM bookings
+                """
+            )
+
+            next_id = cur.fetchone()[0] + 1
+            booking_number = f"WEB-{next_id:04d}"
+
+            cur.execute(
+                """
+                INSERT INTO bookings (
+                    booking_number,
+                    customer_id,
+                    performance_id,
+                    ticket_count,
+                    ticket_price,
+                    service_fee,
+                    status
+                )
+                VALUES (
+                    %s,
+                    %s,
+                    %s,
+                    %s,
+                    %s,
+                    %s,
+                    'reserviert'
+                )
+                RETURNING id
+                """,
+                (
+                    booking_number,
+                    customer_id,
+                    data.performance_id,
+                    data.ticket_count,
+                    data.ticket_price,
+                    data.service_fee,
+                ),
+            )
+
+            booking_id = cur.fetchone()[0]
+
+            conn.commit()
+
+    return {
+        "success": True,
+        "booking_id": booking_id,
+        "booking_number": booking_number,
+        "performance_id": data.performance_id,
+    }
+
+
+# ============================================================
+# PERSON / BUCHUNG LÖSCHEN
+# ============================================================
+
+@app.delete("/api/bookings/{booking_id}")
+def delete_booking(booking_id: int):
+    with psycopg.connect(DB_CONFIG) as conn:
+        with conn.cursor() as cur:
+
+            cur.execute(
+                """
+                SELECT customer_id
+                FROM bookings
+                WHERE id = %s
+                """,
+                (booking_id,),
+            )
+
+            booking = cur.fetchone()
+
+            if not booking:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Buchung nicht gefunden.",
+                )
+
+            customer_id = booking[0]
+
+            cur.execute(
+                """
+                DELETE FROM seat_assignments
+                WHERE booking_id = %s
+                """,
+                (booking_id,),
+            )
+
+            cur.execute(
+                """
+                DELETE FROM bookings
+                WHERE id = %s
+                """,
+                (booking_id,),
+            )
+
+            cur.execute(
+                """
+                SELECT COUNT(*)
+                FROM bookings
+                WHERE customer_id = %s
+                """,
+                (customer_id,),
+            )
+
+            remaining_bookings = cur.fetchone()[0]
+
+            if remaining_bookings == 0:
+                cur.execute(
+                    """
+                    DELETE FROM customers
+                    WHERE id = %s
+                    """,
+                    (customer_id,),
+                )
+
+            conn.commit()
+
+    return {
+        "success": True,
+    }
+
+
+# ============================================================
+# SITZPLATZ-ZUWEISUNGEN
+# ============================================================
+
+@app.get("/api/assignments")
+def get_assignments(performance_id: int = 1):
+    with psycopg.connect(DB_CONFIG) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                    sa.id,
+                    sa.performance_id,
+                    sa.seat_id,
+                    sa.booking_id,
+                    sa.status,
+                    s.row_number,
+                    s.seat_number,
+                    b.booking_number,
+                    c.first_name,
+                    c.last_name
+                FROM seat_assignments sa
+                JOIN seats s
+                    ON s.id = sa.seat_id
+                JOIN bookings b
+                    ON b.id = sa.booking_id
+                JOIN customers c
+                    ON c.id = b.customer_id
+                WHERE sa.performance_id = %s
+                ORDER BY
+                    s.row_number,
+                    s.seat_number
+                """,
+                (performance_id,),
+            )
+
+            rows = cur.fetchall()
+
+    return [
+        {
+            "id": row[0],
+            "performance_id": row[1],
+            "seat_id": row[2],
+            "booking_id": row[3],
+            "status": row[4],
+            "row_number": row[5],
+            "seat_number": row[6],
+            "booking_number": row[7],
+            "first_name": row[8],
+            "last_name": row[9],
+        }
+        for row in rows
+    ]
+
+
+@app.post("/api/assignments")
+def create_assignment(data: SeatAssignmentCreate):
+    with psycopg.connect(DB_CONFIG) as conn:
+        with conn.cursor() as cur:
+
+            cur.execute(
+                """
+                SELECT id
+                FROM performances
+                WHERE id = %s
+                """,
+                (data.performance_id,),
+            )
+
+            if not cur.fetchone():
+                raise HTTPException(
+                    status_code=404,
+                    detail="Vorstellung nicht gefunden.",
+                )
+
+            cur.execute(
+                """
+                SELECT id
+                FROM seats
+                WHERE id = %s
+                AND is_active = TRUE
+                """,
+                (data.seat_id,),
+            )
+
+            if not cur.fetchone():
+                raise HTTPException(
+                    status_code=404,
+                    detail="Sitzplatz nicht gefunden.",
+                )
+
+            cur.execute(
+                """
+                SELECT id
+                FROM seat_assignments
+                WHERE
+                    performance_id = %s
+                    AND seat_id = %s
+                """,
+                (
+                    data.performance_id,
+                    data.seat_id,
+                ),
+            )
+
+            if cur.fetchone():
+                raise HTTPException(
+                    status_code=409,
+                    detail="Dieser Sitzplatz ist bereits vergeben.",
+                )
+
+            cur.execute(
+                """
+                SELECT
+                    ticket_count,
+                    performance_id
+                FROM bookings
+                WHERE id = %s
+                """,
+                (data.booking_id,),
+            )
+
+            booking = cur.fetchone()
+
+            if not booking:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Buchung nicht gefunden.",
+                )
+
+            ticket_count = booking[0]
+            booking_performance_id = booking[1]
+
+            if booking_performance_id != data.performance_id:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Die Buchung gehört zu einer anderen Vorstellung.",
+                )
+
+            cur.execute(
+                """
+                SELECT COUNT(*)
+                FROM seat_assignments
+                WHERE
+                    performance_id = %s
+                    AND booking_id = %s
+                """,
+                (
+                    data.performance_id,
+                    data.booking_id,
+                ),
+            )
+
+            assigned_count = cur.fetchone()[0]
+
+            if assigned_count >= ticket_count:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Für diese Buchung wurden bereits alle Plätze vergeben.",
+                )
+
+            cur.execute(
+                """
+                INSERT INTO seat_assignments (
+                    performance_id,
+                    seat_id,
+                    booking_id,
+                    status
+                )
+                VALUES (%s, %s, %s, 'reserviert')
+                RETURNING id
+                """,
+                (
+                    data.performance_id,
+                    data.seat_id,
+                    data.booking_id,
+                ),
+            )
+
+            assignment_id = cur.fetchone()[0]
+
+            conn.commit()
+
+    return {
+        "success": True,
+        "assignment_id": assignment_id,
+    }
+
+
+@app.patch("/api/assignments/{assignment_id}/status")
+def update_assignment_status(
+    assignment_id: int,
+    data: AssignmentStatusUpdate,
+):
+    if data.status not in VALID_STATUSES:
+        raise HTTPException(
+            status_code=400,
+            detail="Ungültiger Status.",
+        )
+
+    with psycopg.connect(DB_CONFIG) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE seat_assignments
+                SET status = %s
+                WHERE id = %s
+                RETURNING id
+                """,
+                (
+                    data.status,
+                    assignment_id,
+                ),
+            )
+
+            if not cur.fetchone():
+                raise HTTPException(
+                    status_code=404,
+                    detail="Zuweisung nicht gefunden.",
+                )
+
+            conn.commit()
+
+    return {
+        "success": True,
+        "status": data.status,
+    }
+
+
+@app.delete("/api/assignments/{assignment_id}")
+def delete_assignment(assignment_id: int):
+    with psycopg.connect(DB_CONFIG) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                DELETE FROM seat_assignments
+                WHERE id = %s
+                RETURNING id
+                """,
+                (assignment_id,),
+            )
+
+            if not cur.fetchone():
+                raise HTTPException(
+                    status_code=404,
+                    detail="Zuweisung nicht gefunden.",
+                )
+
+            conn.commit()
+
+    return {
+        "success": True,
+    }

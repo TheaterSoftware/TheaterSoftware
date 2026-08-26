@@ -1,0 +1,753 @@
+import {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+
+type InvoiceBooking = {
+  id: number;
+  booking_number: string;
+  first_name: string;
+  last_name: string;
+  ticket_count: number;
+  ticket_price: number;
+  service_fee: number;
+  performanceId: number;
+};
+
+type InvoicePerformance = {
+  id: number;
+  date: string;
+  time: string;
+  title: string;
+};
+
+type InvoiceTemplate = {
+  template_key: string;
+  name: string;
+  description: string;
+};
+
+type TaxRate = {
+  id: number;
+  label: string;
+  rate: number;
+  is_default: boolean;
+};
+
+type ExistingInvoice = {
+  id: number;
+  invoice_number: string;
+  booking_id: number;
+  booking_number: string;
+  first_name: string;
+  last_name: string;
+  invoice_date: string | null;
+  template_key: string;
+  tax_rate: number;
+  net_amount: number;
+  tax_amount: number;
+  gross_amount: number;
+  status: string;
+  payment_status: string;
+};
+
+type Props = {
+  bookings: InvoiceBooking[];
+  performances: InvoicePerformance[];
+  onClose: () => void;
+};
+
+function money(value: number) {
+  return value.toLocaleString(
+    "de-DE",
+    {
+      style: "currency",
+      currency: "EUR",
+    }
+  );
+}
+
+export default function InvoicePanel({
+  bookings,
+  performances,
+  onClose,
+}: Props) {
+  const [templates, setTemplates] =
+    useState<InvoiceTemplate[]>([]);
+
+  const [taxRates, setTaxRates] =
+    useState<TaxRate[]>([]);
+
+  const [selectedBookingId, setSelectedBookingId] =
+    useState<number | "">("");
+
+  const [templateKey, setTemplateKey] =
+    useState("RE1");
+
+  const [taxRate, setTaxRate] =
+    useState(19);
+
+  const [dueDate, setDueDate] =
+    useState("");
+
+  const [bookingSearch, setBookingSearch] =
+    useState("");
+
+  const [existingInvoice, setExistingInvoice] =
+    useState<ExistingInvoice | null>(null);
+
+  const [loading, setLoading] =
+    useState(false);
+
+  const [message, setMessage] =
+    useState("");
+
+  const [error, setError] =
+    useState("");
+
+  const selectedBooking =
+    bookings.find(
+      (booking) =>
+        booking.id === selectedBookingId
+    ) ?? null;
+
+  const filteredBookings = useMemo(() => {
+    const search =
+      bookingSearch.trim().toLowerCase();
+
+    if (!search) {
+      return bookings;
+    }
+
+    return bookings.filter(
+      (booking) => {
+        const name =
+          `${booking.first_name} ${booking.last_name}`
+            .toLowerCase();
+
+        return (
+          name.includes(search) ||
+          booking.booking_number
+            .toLowerCase()
+            .includes(search)
+        );
+      }
+    );
+  }, [bookings, bookingSearch]);
+
+  const selectedPerformance =
+    performances.find(
+      (performance) =>
+        performance.id ===
+        selectedBooking?.performanceId
+    ) ?? null;
+
+  const grossPreview =
+    selectedBooking
+      ? (
+          Number(selectedBooking.ticket_count) *
+            Number(selectedBooking.ticket_price)
+        ) +
+        Number(selectedBooking.service_fee || 0)
+      : 0;
+
+  const divisor =
+    1 + taxRate / 100;
+
+  const netPreview =
+    grossPreview > 0
+      ? Math.round(
+          (grossPreview / divisor) * 100
+        ) / 100
+      : 0;
+
+  const taxPreview =
+    grossPreview > 0
+      ? Math.round(
+          (grossPreview - netPreview) * 100
+        ) / 100
+      : 0;
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadOptions() {
+      try {
+        const [
+          templateResponse,
+          taxResponse,
+        ] = await Promise.all([
+          fetch("/api/invoice-templates"),
+          fetch("/api/tax-rates"),
+        ]);
+
+        if (!templateResponse.ok) {
+          throw new Error(
+            "Rechnungsvorlagen konnten nicht geladen werden."
+          );
+        }
+
+        if (!taxResponse.ok) {
+          throw new Error(
+            "Steuersätze konnten nicht geladen werden."
+          );
+        }
+
+        const [
+          templateData,
+          taxData,
+        ] = await Promise.all([
+          templateResponse.json(),
+          taxResponse.json(),
+        ]);
+
+        if (cancelled) {
+          return;
+        }
+
+        if (Array.isArray(templateData)) {
+          setTemplates(templateData);
+          if (
+            templateData.length > 0 &&
+            !templateData.some(
+              (item) =>
+                item.template_key === "RE1"
+            )
+          ) {
+            setTemplateKey(
+              templateData[0].template_key
+            );
+          }
+        }
+
+        if (Array.isArray(taxData)) {
+          setTaxRates(taxData);
+
+          const defaultRate =
+            taxData.find(
+              (item: TaxRate) =>
+                item.is_default
+            );
+
+          if (defaultRate) {
+            setTaxRate(
+              Number(defaultRate.rate)
+            );
+          }
+        }
+      } catch (loadError) {
+        if (cancelled) {
+          return;
+        }
+
+        setError(
+          loadError instanceof Error
+            ? loadError.message
+            : "Rechnungsoptionen konnten nicht geladen werden."
+        );
+      }
+    }
+
+    loadOptions();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadExistingInvoice() {
+      setExistingInvoice(null);
+
+      if (
+        typeof selectedBookingId !==
+        "number"
+      ) {
+        return;
+      }
+
+      try {
+        const response = await fetch(
+          `/api/invoices?booking_id=${selectedBookingId}`
+        );
+
+        if (!response.ok) {
+          throw new Error(
+            `Rechnungen konnten nicht geladen werden (HTTP ${response.status}).`
+          );
+        }
+
+        const data =
+          await response.json();
+
+        if (cancelled) {
+          return;
+        }
+
+        if (
+          Array.isArray(data) &&
+          data.length > 0
+        ) {
+          setExistingInvoice(data[0]);
+        }
+      } catch (loadError) {
+        if (!cancelled) {
+          setError(
+            loadError instanceof Error
+              ? loadError.message
+              : "Vorhandene Rechnung konnte nicht geprüft werden."
+          );
+        }
+      }
+    }
+
+    loadExistingInvoice();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedBookingId]);
+
+  async function createInvoice() {
+    setMessage("");
+    setError("");
+
+    if (
+      typeof selectedBookingId !==
+      "number"
+    ) {
+      setError(
+        "Bitte zuerst eine Buchung auswählen."
+      );
+      return;
+    }
+
+    if (existingInvoice) {
+      setError(
+        `Für diese Buchung existiert bereits ${existingInvoice.invoice_number}.`
+      );
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const response = await fetch(
+        "/api/invoices",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify({
+            booking_id:
+              selectedBookingId,
+            template_key:
+              templateKey,
+            tax_rate:
+              Number(taxRate),
+            due_date:
+              dueDate || null,
+          }),
+        }
+      );
+
+      const data =
+        await response
+          .json()
+          .catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(
+          data?.detail ??
+            `Rechnung konnte nicht erstellt werden (HTTP ${response.status}).`
+        );
+      }
+
+      setExistingInvoice({
+        id: Number(
+          data.invoice_id
+        ),
+        invoice_number:
+          data.invoice_number,
+        booking_id:
+          Number(data.booking_id),
+        booking_number:
+          data.booking_number,
+        first_name:
+          selectedBooking?.first_name ??
+          "",
+        last_name:
+          selectedBooking?.last_name ??
+          "",
+        invoice_date:
+          new Date()
+            .toISOString()
+            .slice(0, 10),
+        template_key:
+          data.template_key,
+        tax_rate:
+          Number(data.tax_rate),
+        net_amount:
+          Number(data.net_amount),
+        tax_amount:
+          Number(data.tax_amount),
+        gross_amount:
+          Number(data.gross_amount),
+        status: "offen",
+        payment_status: "offen",
+      });
+
+      setMessage(
+        `${data.invoice_number} wurde erfolgreich erstellt.`
+      );
+    } catch (createError) {
+      setError(
+        createError instanceof Error
+          ? createError.message
+          : "Rechnung konnte nicht erstellt werden."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="invoice-overlay">
+      <div className="invoice-panel">
+        <div className="invoice-panel-header">
+          <div>
+            <h2>Rechnungen</h2>
+            <p>
+              Buchung auswählen und Rechnung automatisch erzeugen
+            </p>
+          </div>
+
+          <button
+            type="button"
+            className="close-button"
+            onClick={onClose}
+            aria-label="Rechnungsbereich schließen"
+          >
+            ×
+          </button>
+        </div>
+
+        {error && (
+          <div className="invoice-error">
+            {error}
+          </div>
+        )}
+
+        {message && (
+          <div className="invoice-success">
+            {message}
+          </div>
+        )}
+
+        <div className="invoice-grid">
+          <section className="invoice-card">
+            <div className="invoice-card-title">
+              <h3>Buchung</h3>
+              <span>
+                {bookings.length}
+              </span>
+            </div>
+
+            <input
+              className="invoice-search"
+              value={bookingSearch}
+              onChange={(event) =>
+                setBookingSearch(
+                  event.target.value
+                )
+              }
+              placeholder="Kunde oder Buchungsnummer suchen …"
+            />
+
+            <select
+              className="invoice-booking-select"
+              value={
+                selectedBookingId
+              }
+              onChange={(event) => {
+                const value =
+                  event.target.value;
+
+                setSelectedBookingId(
+                  value
+                    ? Number(value)
+                    : ""
+                );
+                setMessage("");
+                setError("");
+              }}
+            >
+              <option value="">
+                Buchung auswählen …
+              </option>
+
+              {filteredBookings.map(
+                (booking) => (
+                  <option
+                    key={booking.id}
+                    value={booking.id}
+                  >
+                    {booking.last_name},{" "}
+                    {booking.first_name} ·{" "}
+                    {booking.booking_number}
+                  </option>
+                )
+              )}
+            </select>
+
+            {selectedBooking && (
+              <div className="invoice-booking-summary">
+                <strong>
+                  {
+                    selectedBooking.first_name
+                  }{" "}
+                  {
+                    selectedBooking.last_name
+                  }
+                </strong>
+
+                <span>
+                  {
+                    selectedBooking.booking_number
+                  }
+                </span>
+
+                {selectedPerformance && (
+                  <span>
+                    {selectedPerformance.date} ·{" "}
+                    {selectedPerformance.time} ·{" "}
+                    {selectedPerformance.title}
+                  </span>
+                )}
+
+                <span>
+                  {selectedBooking.ticket_count}{" "}
+                  {selectedBooking.ticket_count === 1
+                    ? "Ticket"
+                    : "Tickets"}{" "}
+                  à{" "}
+                  {money(
+                    Number(
+                      selectedBooking.ticket_price
+                    )
+                  )}
+                </span>
+              </div>
+            )}
+
+            {existingInvoice && (
+              <div className="invoice-existing">
+                <strong>
+                  Rechnung bereits vorhanden
+                </strong>
+
+                <span>
+                  {
+                    existingInvoice.invoice_number
+                  }
+                </span>
+
+                <span>
+                  {
+                    existingInvoice.status
+                  }{" "}
+                  ·{" "}
+                  {money(
+                    existingInvoice.gross_amount
+                  )}
+                </span>
+              </div>
+            )}
+          </section>
+
+          <section className="invoice-card">
+            <h3>Rechnungseinstellungen</h3>
+
+            <label className="invoice-field">
+              Vorlage
+              <select
+                value={templateKey}
+                onChange={(event) =>
+                  setTemplateKey(
+                    event.target.value
+                  )
+                }
+              >
+                {templates.map(
+                  (template) => (
+                    <option
+                      key={
+                        template.template_key
+                      }
+                      value={
+                        template.template_key
+                      }
+                    >
+                      {template.name}
+                    </option>
+                  )
+                )}
+              </select>
+            </label>
+
+            <label className="invoice-field">
+              Steuersatz
+              <select
+                value={taxRate}
+                onChange={(event) =>
+                  setTaxRate(
+                    Number(
+                      event.target.value
+                    )
+                  )
+                }
+              >
+                {taxRates.map(
+                  (rate) => (
+                    <option
+                      key={rate.id}
+                      value={rate.rate}
+                    >
+                      {rate.label}
+                    </option>
+                  )
+                )}
+              </select>
+            </label>
+
+            <label className="invoice-field">
+              Zahlungsziel
+              <input
+                type="date"
+                value={dueDate}
+                onChange={(event) =>
+                  setDueDate(
+                    event.target.value
+                  )
+                }
+              />
+            </label>
+          </section>
+        </div>
+
+        <section className="invoice-card invoice-preview">
+          <div className="invoice-card-title">
+            <div>
+              <h3>Vorschau</h3>
+              <p>
+                Werte werden automatisch aus der Buchung berechnet.
+              </p>
+            </div>
+          </div>
+
+          <div className="invoice-lines">
+            <div>
+              <span>
+                Tickets
+              </span>
+
+              <strong>
+                {selectedBooking
+                  ? money(
+                      Number(
+                        selectedBooking.ticket_count
+                      ) *
+                        Number(
+                          selectedBooking.ticket_price
+                        )
+                    )
+                  : "–"}
+              </strong>
+            </div>
+
+            <div>
+              <span>
+                Servicepauschale
+              </span>
+
+              <strong>
+                {selectedBooking
+                  ? money(
+                      Number(
+                        selectedBooking.service_fee || 0
+                      )
+                    )
+                  : "–"}
+              </strong>
+            </div>
+
+            <div className="invoice-total-line">
+              <span>
+                Netto
+              </span>
+              <strong>
+                {selectedBooking
+                  ? money(netPreview)
+                  : "–"}
+              </strong>
+            </div>
+
+            <div>
+              <span>
+                MwSt. {taxRate} %
+              </span>
+              <strong>
+                {selectedBooking
+                  ? money(taxPreview)
+                  : "–"}
+              </strong>
+            </div>
+
+            <div className="invoice-total-line invoice-gross">
+              <span>
+                Brutto
+              </span>
+              <strong>
+                {selectedBooking
+                  ? money(grossPreview)
+                  : "–"}
+              </strong>
+            </div>
+          </div>
+        </section>
+
+        <div className="invoice-actions">
+          <button
+            type="button"
+            className="cancel-button"
+            onClick={onClose}
+          >
+            Schließen
+          </button>
+
+          <button
+            type="button"
+            className="save-button"
+            onClick={createInvoice}
+            disabled={
+              loading ||
+              !selectedBooking ||
+              Boolean(existingInvoice)
+            }
+          >
+            {loading
+              ? "Rechnung wird erstellt …"
+              : existingInvoice
+              ? "Bereits fakturiert"
+              : "Rechnung erstellen"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

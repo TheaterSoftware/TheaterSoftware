@@ -1,0 +1,283 @@
+import { useEffect, useState, type FormEvent } from "react";
+import Dashboard from "./Dashboard";
+
+type LoginUser = {
+  user_id: number;
+  username: string;
+  display_name: string;
+  role: string;
+};
+
+type Props = {
+  children: React.ReactNode;
+};
+
+export default function LoginGate({ children }: Props) {
+  const [user, setUser] = useState<LoginUser | null>(() => {
+    try {
+      const saved = localStorage.getItem("theater.loggedInUser");
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function handleLogin(event: FormEvent) {
+    event.preventDefault();
+    setError("");
+    setLoading(true);
+
+    try {
+      const response = await fetch(
+        "http://127.0.0.1:8000/api/login",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            username,
+            password,
+          }),
+        }
+      );
+
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(
+          data?.detail ?? "Anmeldung fehlgeschlagen."
+        );
+      }
+
+      localStorage.setItem(
+        "theater.loggedInUser",
+        JSON.stringify(data)
+      );
+
+      setUser(data);
+      setPassword("");
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Anmeldung fehlgeschlagen."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function logout() {
+    localStorage.removeItem("theater.loggedInUser");
+    setUser(null);
+  }
+
+  const [showTheaterApp, setShowTheaterApp] = useState(false);
+
+  useEffect(() => {
+    const handleBack = () => {
+      setShowTheaterApp(false);
+    };
+
+    window.addEventListener(
+      "theater:back",
+      handleBack
+    );
+
+    return () => {
+      window.removeEventListener(
+        "theater:back",
+        handleBack
+      );
+    };
+  }, []);
+
+
+
+  if (user && showTheaterApp) {
+    return children;
+  }
+
+  if (user) {
+    return (
+      <Dashboard
+        userName={user.display_name || user.username}
+        onOpenTheater={() => setShowTheaterApp(true)}
+        onLogout={logout}
+      />
+    );
+  }
+
+  if (!user) {
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          width: "100%",
+          background: "#fff",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          margin: 0,
+          padding: "24px",
+          boxSizing: "border-box",
+        }}
+      >
+        <form
+          onSubmit={handleLogin}
+          style={{
+            width: "100%",
+            maxWidth: "380px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "16px",
+            background: "#fff",
+            padding: "32px",
+            boxSizing: "border-box",
+            textAlign: "center",
+          }}
+        >
+          <h1
+            style={{
+              margin: "0 0 4px",
+              fontSize: "28px",
+              fontWeight: 600,
+              color: "#111",
+            }}
+          >
+            TheaterSoftware
+          </h1>
+
+          <p
+            style={{
+              margin: "0 0 12px",
+              color: "#666",
+              fontSize: "15px",
+            }}
+          >
+            Bitte anmelden
+          </p>
+
+          <label
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "7px",
+              textAlign: "left",
+              color: "#111",
+              fontSize: "14px",
+            }}
+          >
+            Benutzername
+            <input
+              type="text"
+              value={username}
+              onChange={(event) =>
+                setUsername(event.target.value)
+              }
+              autoComplete="username"
+              required
+              style={{
+                width: "100%",
+                boxSizing: "border-box",
+                padding: "12px 14px",
+                border: "1px solid #d0d0d0",
+                borderRadius: "8px",
+                background: "#fff",
+                color: "#111",
+                fontSize: "16px",
+              }}
+            />
+          </label>
+
+          <label
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "7px",
+              textAlign: "left",
+              color: "#111",
+              fontSize: "14px",
+            }}
+          >
+            Passwort
+            <input
+              type="password"
+              value={password}
+              onChange={(event) =>
+                setPassword(event.target.value)
+              }
+              autoComplete="current-password"
+              required
+              style={{
+                width: "100%",
+                boxSizing: "border-box",
+                padding: "12px 14px",
+                border: "1px solid #d0d0d0",
+                borderRadius: "8px",
+                background: "#fff",
+                color: "#111",
+                fontSize: "16px",
+              }}
+            />
+          </label>
+
+          {error && (
+            <p
+              style={{
+                margin: 0,
+                color: "#c00",
+                fontSize: "14px",
+              }}
+            >
+              {error}
+            </p>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            style={{
+              marginTop: "4px",
+              width: "100%",
+              padding: "12px 14px",
+              border: "none",
+              borderRadius: "8px",
+              background: "#111",
+              color: "#fff",
+              fontSize: "16px",
+              cursor: loading ? "default" : "pointer",
+            }}
+          >
+            {loading ? "Anmelden ..." : "Anmelden"}
+          </button>
+        </form>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div
+        style={{
+          position: "fixed",
+          top: 12,
+          right: 12,
+          zIndex: 9999,
+        }}
+      >
+        <button type="button" onClick={logout}>
+          Abmelden
+        </button>
+      </div>
+
+      {children}
+    </>
+  );
+}

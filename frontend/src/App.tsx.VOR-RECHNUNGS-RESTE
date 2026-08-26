@@ -1,0 +1,3579 @@
+import { createBooking } from "./api/bookings";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
+import "./App.css";
+import CustomerConsole from "./components/CustomerConsole";
+import InvoicePanel from "./components/InvoicePanel";
+
+import TischsaalPlan from "./TischsaalPlan";
+type Seat = {
+  id: number;
+  row_number: number;
+  seat_number: number;
+  side: string;
+  is_active: boolean;
+};
+
+type Booking = {
+  id: number;
+  booking_number: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string;
+  street: string;
+  postal_code: string;
+  city: string;
+  notes: string;
+  ticket_count: number;
+  ticket_price: number;
+  service_fee: number;
+  status: string;
+  localOnly: boolean;
+  performanceId: number;
+};
+
+type Assignment = {
+  id: number;
+  performance_id: number;
+  seat_id: number;
+  booking_id: number;
+  status: string;
+  row_number: number;
+  seat_number: number;
+  booking_number: string;
+  first_name: string;
+  last_name: string;
+  localOnly: boolean;
+};
+
+type Performance = {
+  id: number;
+  date: string;
+  time: string;
+  title: string;
+  hall_plan_type: "hall_1" | "hall_2";
+};
+
+function createSeats(): Seat[] {
+  const seats: Seat[] = [];
+  let id = 1;
+
+  for (let row = 1; row <= 7; row++) {
+    for (let number = 1; number <= 12; number++) {
+      seats.push({
+        id,
+        row_number: row,
+        seat_number: number,
+        side: number >= 7 ? "links" : "rechts",
+        is_active: true,
+      });
+
+      id++;
+    }
+  }
+
+  for (let number = 1; number <= 10; number++) {
+    seats.push({
+      id,
+      row_number: 8,
+      seat_number: number,
+      side: number >= 7 ? "links" : "rechts",
+      is_active: true,
+    });
+
+    id++;
+  }
+
+  for (let number = 1; number <= 12; number++) {
+    seats.push({
+      id,
+      row_number: 9,
+      seat_number: number,
+      side: "unten",
+      is_active: true,
+    });
+
+    id++;
+  }
+
+  return seats;
+}
+
+const SEATS = createSeats();
+
+function App() {
+  const [loggedInUser, setLoggedInUser] = useState<{
+    user_id: number;
+    username: string;
+    display_name: string;
+    role: string;
+  } | null>(() => {
+    try {
+      const saved =
+        localStorage.getItem(
+          "theater.loggedInUser"
+        );
+
+      return saved
+        ? JSON.parse(saved)
+        : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [loginUsername, setLoginUsername] =
+    useState("");
+
+  const [loginPassword, setLoginPassword] =
+    useState("");
+
+  const [loginError, setLoginError] =
+    useState("");
+
+  const [loginLoading, setLoginLoading] =
+    useState(false);
+
+  const [performances, setPerformances] =
+    useState<Performance[]>([]);
+
+  const [selectedPerformanceId, setSelectedPerformanceId] =
+    useState<number>(() => {
+      const saved =
+        Number(
+          localStorage.getItem(
+            "theater.selectedPerformanceId"
+          )
+        );
+
+      return Number.isFinite(saved)
+        ? saved
+        : 0;
+    });
+
+  const [performancesLoaded, setPerformancesLoaded] =
+    useState(false);
+
+  const [performanceLoadError, setPerformanceLoadError] =
+    useState("");
+
+  const [bookingsByPerformance, setBookingsByPerformance] =
+    useState<Record<number, Booking[]>>({});
+
+  const [assignmentsByPerformance, setAssignmentsByPerformance] =
+    useState<Record<number, Assignment[]>>({});
+
+  const [selectedSeat, setSelectedSeat] =
+    useState<Seat | null>(null);
+
+  const [draggedBookingId, setDraggedBookingId] =
+    useState<number | null>(null);
+
+  const [selectedBookingForSeat, setSelectedBookingForSeat] =
+    useState<number | "">("");
+
+  const [message, setMessage] =
+    useState("");
+
+  const [searchTerm, setSearchTerm] =
+    useState("");
+
+  const [customerConsoleBooking, setCustomerConsoleBooking] =
+    useState<Booking | null>(null);
+
+  const [showBookingForm, setShowBookingForm] =
+    useState(false);
+
+  const [showPerformanceForm, setShowPerformanceForm] =
+    useState(false);
+
+  const [showInvoicePanel, setShowInvoicePanel] =
+    useState(false);
+
+  const [performanceDate, setPerformanceDate] =
+    useState("");
+
+  const [performanceTime, setPerformanceTime] =
+    useState("19:30");
+
+  const [performanceTitle, setPerformanceTitle] =
+    useState("Dinnershow");
+
+  const [performanceHallPlanType, setPerformanceHallPlanType] =
+    useState<"hall_1" | "hall_2">("hall_1");
+
+  const [firstName, setFirstName] =
+    useState("");
+
+  const [lastName, setLastName] =
+    useState("");
+
+  const [email, setEmail] =
+    useState("");
+
+  const [phone, setPhone] =
+    useState("");
+
+  const [street, setStreet] =
+    useState("");
+
+  const [postalCode, setPostalCode] =
+    useState("");
+
+  const [city, setCity] =
+    useState("");
+
+  const [notes, setNotes] =
+    useState("");
+
+  const [ticketCount, setTicketCount] =
+    useState("2");
+
+  const [ticketPrice, setTicketPrice] =
+    useState("79.90");
+
+  const [serviceFee, setServiceFee] =
+    useState("3.50");
+
+  const [showEditBookingForm, setShowEditBookingForm] =
+    useState(false);
+
+  const [editingBooking, setEditingBooking] =
+    useState<Booking | null>(null);
+
+  const [editFirstName, setEditFirstName] =
+    useState("");
+
+  const [editLastName, setEditLastName] =
+    useState("");
+
+  const [editEmail, setEditEmail] =
+    useState("");
+
+  const [editPhone, setEditPhone] =
+    useState("");
+
+  const [editStreet, setEditStreet] =
+    useState("");
+
+  const [editPostalCode, setEditPostalCode] =
+    useState("");
+
+  const [editCity, setEditCity] =
+    useState("");
+
+  const [editNotes, setEditNotes] =
+    useState("");
+
+  const [editTicketCount, setEditTicketCount] =
+    useState("1");
+
+  const [editTicketPrice, setEditTicketPrice] =
+    useState("0");
+
+  const [editServiceFee, setEditServiceFee] =
+    useState("0");
+
+  const selectedPerformance =
+    performances.find(
+      (performance) =>
+        performance.id === selectedPerformanceId
+    ) ?? performances[0] ?? null;
+
+  const bookings =
+    bookingsByPerformance[selectedPerformanceId] ?? [];
+
+  const allInvoiceBookings = useMemo(
+    () =>
+      Object.entries(bookingsByPerformance).flatMap(
+        ([performanceId, performanceBookings]) =>
+          performanceBookings.map((booking) => ({
+            ...booking,
+            performanceId: Number(performanceId),
+          }))
+      ),
+    [bookingsByPerformance]
+  );
+
+  const assignments =
+    assignmentsByPerformance[selectedPerformanceId] ?? [];
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadPerformances() {
+      try {
+        setPerformanceLoadError("");
+
+        const response = await fetch(
+          "/api/performances"
+        );
+
+        if (!response.ok) {
+          throw new Error(
+            `HTTP ${response.status}`
+          );
+        }
+
+        const data = await response.json();
+
+        if (!Array.isArray(data)) {
+          throw new Error(
+            "Ungültige API-Antwort."
+          );
+        }
+
+        const loadedPerformances: Performance[] =
+          data.map((item) => {
+            const date = String(
+              item.performance_date ?? ""
+            );
+
+            const [
+              year,
+              month,
+              day,
+            ] = date.split("-");
+
+            return {
+              id: Number(item.id),
+              date:
+                year && month && day
+                  ? `${day}.${month}.${year}`
+                  : date,
+              time: String(
+                item.start_time ?? ""
+              ).slice(0, 5),
+              title: String(
+                item.title ?? "Vorstellung"
+              ),
+              hall_plan_type:
+                item.hall_plan_type === "hall_2"
+                  ? "hall_2"
+                  : "hall_1",
+            };
+          });
+
+        if (cancelled) {
+          return;
+        }
+
+        setPerformances(
+          loadedPerformances
+        );
+
+        const bookingsResponse = await fetch(
+          "/api/bookings"
+        );
+
+        if (!bookingsResponse.ok) {
+          throw new Error(
+            `Buchungen konnten nicht geladen werden: HTTP ${bookingsResponse.status}`
+          );
+        }
+
+        const bookingsData = await bookingsResponse.json();
+
+        if (!Array.isArray(bookingsData)) {
+          throw new Error(
+            "Ungültige Buchungs-API-Antwort."
+          );
+        }
+
+        const loadedBookingsByPerformance =
+          Object.fromEntries(
+            loadedPerformances.map(
+              (performance) => [
+                performance.id,
+                bookingsData.filter(
+                  (booking) =>
+                    Number(
+                      booking.performance_id
+                    ) === performance.id
+                ) as Booking[],
+              ]
+            )
+          );
+
+        setBookingsByPerformance(
+          loadedBookingsByPerformance
+        );
+
+        const assignmentsResponses =
+          await Promise.all(
+            loadedPerformances.map(
+              async (performance) => {
+                const response = await fetch(
+                  `/api/assignments?performance_id=${performance.id}`
+                );
+
+                if (!response.ok) {
+                  throw new Error(
+                    `Sitzplatz-Zuordnungen konnten nicht geladen werden: HTTP ${response.status}`
+                  );
+                }
+
+                const data = await response.json();
+
+                if (!Array.isArray(data)) {
+                  throw new Error(
+                    "Ungültige Assignment-API-Antwort."
+                  );
+                }
+
+                return data;
+              }
+            )
+          );
+
+        const assignmentsData =
+          assignmentsResponses.flat();
+
+        const loadedAssignmentsByPerformance =
+          Object.fromEntries(
+            loadedPerformances.map(
+              (performance) => [
+                performance.id,
+                assignmentsData.filter(
+                  (assignment) =>
+                    Number(
+                      assignment.performance_id
+                    ) === performance.id
+                ) as Assignment[],
+              ]
+            )
+          );
+
+        setAssignmentsByPerformance(
+          loadedAssignmentsByPerformance
+        );
+
+        const savedPerformanceId =
+          Number(
+            localStorage.getItem(
+              "theater.selectedPerformanceId"
+            )
+          );
+
+        const restoredPerformanceId =
+          loadedPerformances.some(
+            (performance) =>
+              performance.id ===
+              savedPerformanceId
+          )
+            ? savedPerformanceId
+            : (
+                loadedPerformances[0]?.id ??
+                0
+              );
+
+        setSelectedPerformanceId(
+          restoredPerformanceId
+        );
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        console.error(error);
+
+        setPerformanceLoadError(
+          "Vorstellungen konnten nicht aus dem Backend geladen werden. Bitte prüfen, ob das Backend läuft."
+        );
+      } finally {
+        if (!cancelled) {
+          setPerformancesLoaded(true);
+        }
+      }
+    }
+
+    loadPerformances();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const filteredBookings = useMemo(() => {
+    const search =
+      searchTerm.trim().toLowerCase();
+
+    if (!search) {
+      return bookings;
+    }
+
+    return bookings.filter(
+      (booking) => {
+        const fullName =
+          `${booking.first_name} ${booking.last_name}`
+            .toLowerCase();
+
+        const reverseName =
+          `${booking.last_name} ${booking.first_name}`
+            .toLowerCase();
+
+        const bookingNumber =
+          booking.booking_number.toLowerCase();
+
+        return (
+          fullName.includes(search) ||
+          reverseName.includes(search) ||
+          bookingNumber.includes(search)
+        );
+      }
+    );
+  }, [bookings, searchTerm]);
+
+  const totalSeats =
+    SEATS.filter(
+      (seat) => seat.is_active
+    ).length;
+
+  const paidSeats =
+    assignments.filter(
+      (assignment) =>
+        assignment.status === "bezahlt"
+    ).length;
+
+  const reservedSeats =
+    assignments.filter(
+      (assignment) =>
+        assignment.status === "reserviert"
+    ).length;
+
+  const hinterlegtSeats =
+    assignments.filter(
+      (assignment) =>
+        assignment.status === "hinterlegt"
+    ).length;
+
+  const cancelledSeats =
+    assignments.filter(
+      (assignment) =>
+        assignment.status === "storniert"
+    ).length;
+
+  const occupiedSeats =
+    paidSeats +
+    reservedSeats +
+    hinterlegtSeats;
+
+  const freeSeats =
+    Math.max(
+      totalSeats - occupiedSeats,
+      0
+    );
+
+  function getAssignedCount(
+    bookingId: number
+  ) {
+    return assignments.filter(
+      (assignment) =>
+        assignment.booking_id === bookingId
+    ).length;
+  }
+
+  async function addPerformance() {
+    if (!performanceDate) {
+      setMessage(
+        "Bitte ein Datum auswählen."
+      );
+      return;
+    }
+
+    if (!performanceTime) {
+      setMessage(
+        "Bitte eine Uhrzeit eingeben."
+      );
+      return;
+    }
+
+    if (!performanceTitle.trim()) {
+      setMessage(
+        "Bitte eine Bezeichnung eingeben."
+      );
+      return;
+    }
+
+    try {
+      setMessage(
+        "Vorstellung wird gespeichert …"
+      );
+
+      const response = await fetch(
+        "/api/performances",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            title:
+              performanceTitle.trim(),
+            performance_date:
+              performanceDate,
+            start_time:
+              performanceTime,
+            hall_plan_type:
+              performanceHallPlanType,
+
+          }),
+        }
+      );
+
+      const data =
+        await response.json();
+
+      const item =
+        data.performance;
+
+      const [
+        year,
+        month,
+        day,
+      ] = String(
+        item.performance_date
+      ).split("-");
+
+      const newPerformance: Performance = {
+        id: Number(item.id),
+        date:
+          year && month && day
+            ? `${day}.${month}.${year}`
+            : item.performance_date,
+        time:
+          String(
+            item.start_time
+          ).slice(0, 5),
+        title:
+          item.title,
+          hall_plan_type:
+            item.hall_plan_type === "hall_2"
+              ? "hall_2"
+              : "hall_1",
+      };
+
+      setPerformances(
+        (current) => [
+          ...current,
+          newPerformance,
+        ]
+      );
+
+      setBookingsByPerformance(
+        (current) => ({
+          ...current,
+          [newPerformance.id]: [],
+        })
+      );
+
+      setAssignmentsByPerformance(
+        (current) => ({
+          ...current,
+          [newPerformance.id]: [],
+        })
+      );
+
+      setSelectedPerformanceId(
+        newPerformance.id
+      );
+
+      setSelectedSeat(null);
+      setSelectedBookingForSeat("");
+      setSearchTerm("");
+
+      setPerformanceDate("");
+      setPerformanceTime("19:30");
+      setPerformanceTitle(
+        "Dinnershow"
+      );
+      setPerformanceHallPlanType(
+        "hall_1"
+      );
+
+      setShowPerformanceForm(
+        false
+      );
+
+      setMessage(
+        "Vorstellung wurde angelegt."
+      );
+    } catch (error) {
+      console.error(error);
+
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Vorstellung konnte nicht angelegt werden."
+      );
+    }
+  }
+
+  async function changePerformance(
+    performanceId: number
+  ) {
+    setSelectedPerformanceId(
+      performanceId
+    );
+
+    localStorage.setItem(
+      "theater.selectedPerformanceId",
+      String(performanceId)
+    );
+
+    setSelectedSeat(null);
+    setSelectedBookingForSeat("");
+    setSearchTerm("");
+    setMessage("");
+
+    try {
+      const response = await fetch(
+        `/api/assignments?performance_id=${performanceId}`
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          `Sitzplatz-Zuordnungen konnten nicht geladen werden: HTTP ${response.status}`
+        );
+      }
+
+      const data = await response.json();
+
+      if (!Array.isArray(data)) {
+        throw new Error(
+          "Ungültige Assignment-API-Antwort."
+        );
+      }
+
+      setAssignmentsByPerformance(
+        (current) => ({
+          ...current,
+          [performanceId]:
+            data as Assignment[],
+        })
+      );
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Sitzplätze konnten nicht geladen werden."
+      );
+    }
+  }
+
+  async function deletePerformance() {
+    if (!selectedPerformance) {
+      return;
+    }
+
+    if (performances.length <= 1) {
+      setMessage(
+        "Die letzte Vorstellung kann nicht gelöscht werden."
+      );
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `⚠️ Wirklich löschen?\n\nDie Vorstellung „${selectedPerformance.title}“ am ${selectedPerformance.date} um ${selectedPerformance.time} wird endgültig gelöscht.\n\nDieser Vorgang kann nicht rückgängig gemacht werden.`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      const savedUser =
+        localStorage.getItem(
+          "theater.loggedInUser"
+        );
+
+      const user = savedUser
+        ? JSON.parse(savedUser)
+        : null;
+
+      const response = await fetch(
+        `/api/performances/${selectedPerformance.id}`,
+        {
+          method: "DELETE",
+          headers: {
+            "X-User-Id":
+              user?.user_id
+                ? String(user.user_id)
+                : "",
+            "X-User-Name":
+              user?.username
+                ? String(user.username)
+                : "",
+          },
+        }
+      );
+
+      const data =
+        await response
+          .json()
+          .catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(
+          data?.detail ??
+            `Löschen fehlgeschlagen (HTTP ${response.status}).`
+        );
+      }
+
+      const deletedPerformanceId =
+        selectedPerformance.id;
+
+      const remaining =
+        performances.filter(
+          (performance) =>
+            performance.id !==
+            deletedPerformanceId
+        );
+
+      setPerformances(remaining);
+
+      setSelectedPerformanceId(
+        remaining[0]?.id ?? null
+      );
+
+      setSelectedSeat(null);
+      setSelectedBookingForSeat("");
+
+      setMessage(
+        "Vorstellung wurde endgültig gelöscht."
+      );
+    } catch (error) {
+      console.error(error);
+
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Vorstellung konnte nicht gelöscht werden."
+      );
+    }
+  }
+
+  async function deleteBooking(
+    booking: Booking
+  ) {
+    const confirmed =
+      window.confirm(
+        `⚠️ Wirklich löschen?\n\nDie Buchung von ${booking.first_name} ${booking.last_name} (${booking.booking_number}) wird endgültig gelöscht.\n\nAlle dieser Buchung zugewiesenen Sitzplätze werden ebenfalls freigegeben.\n\nDieser Vorgang kann nicht rückgängig gemacht werden.`
+      );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      if (!booking.localOnly) {
+        const response =
+          await fetch(
+            `/api/bookings/${booking.id}`,
+            {
+              method: "DELETE",
+            }
+          );
+
+        const data =
+          await response
+            .json()
+            .catch(() => null);
+
+        if (!response.ok) {
+          throw new Error(
+            data?.detail ??
+              `HTTP ${response.status}`
+          );
+        }
+      }
+
+      setBookingsByPerformance(
+        (current) => ({
+          ...current,
+          [selectedPerformanceId]:
+            (
+              current[
+                selectedPerformanceId
+              ] ?? []
+            ).filter(
+              (item) =>
+                item.id !==
+                booking.id
+            ),
+        })
+      );
+
+      setAssignmentsByPerformance(
+        (current) => ({
+          ...current,
+          [selectedPerformanceId]:
+            (
+              current[
+                selectedPerformanceId
+              ] ?? []
+            ).filter(
+              (assignment) =>
+                assignment.booking_id !==
+                booking.id
+            ),
+        })
+      );
+
+      if (
+        selectedBookingForSeat ===
+        booking.id
+      ) {
+        setSelectedBookingForSeat("");
+      }
+
+      if (
+        selectedSeat &&
+        assignmentBySeat.get(
+          selectedSeat.id
+        )?.booking_id ===
+          booking.id
+      ) {
+        setSelectedSeat(null);
+      }
+
+      setMessage(
+        `${booking.first_name} ${booking.last_name} wurde endgültig gelöscht.`
+      );
+    } catch (error) {
+      console.error(error);
+
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Buchung konnte nicht gelöscht werden."
+      );
+    }
+  }
+
+  function startEditBooking(
+    booking: Booking
+  ) {
+    setEditingBooking(
+      booking
+    );
+
+    setEditFirstName(
+      booking.first_name
+    );
+
+    setEditLastName(
+      booking.last_name
+    );
+
+    setEditEmail(
+      booking.email
+    );
+
+    setEditPhone(
+      booking.phone
+    );
+
+    setEditStreet(
+      booking.street
+    );
+
+    setEditPostalCode(
+      booking.postal_code
+    );
+
+    setEditCity(
+      booking.city
+    );
+
+    setEditNotes(
+      booking.notes
+    );
+
+    setEditTicketCount(
+      String(
+        booking.ticket_count
+      )
+    );
+
+    setEditTicketPrice(
+      String(
+        booking.ticket_price
+      )
+    );
+
+    setEditServiceFee(
+      String(
+        booking.service_fee
+      )
+    );
+
+    setShowEditBookingForm(
+      true
+    );
+
+    setMessage("");
+  }
+
+  function closeEditBookingForm() {
+    setShowEditBookingForm(
+      false
+    );
+
+    setEditingBooking(
+      null
+    );
+  }
+
+  async function saveEditedBooking() {
+    if (!editingBooking) {
+      return;
+    }
+
+    if (!editFirstName.trim()) {
+      setMessage(
+        "Bitte einen Vornamen eingeben."
+      );
+      return;
+    }
+
+    if (!editLastName.trim()) {
+      setMessage(
+        "Bitte einen Nachnamen eingeben."
+      );
+      return;
+    }
+
+    const count =
+      Number(
+        editTicketCount
+      );
+
+    const price =
+      Number(
+        editTicketPrice
+      );
+
+    const fee =
+      Number(
+        editServiceFee
+      );
+
+    const assigned =
+      getAssignedCount(
+        editingBooking.id
+      );
+
+    if (
+      !Number.isInteger(count) ||
+      count < 1
+    ) {
+      setMessage(
+        "Die Anzahl der Plätze muss mindestens 1 sein."
+      );
+      return;
+    }
+
+    if (count < assigned) {
+      setMessage(
+        `Die Anzahl kann nicht auf ${count} reduziert werden, weil bereits ${assigned} Plätze zugewiesen sind.`
+      );
+      return;
+    }
+
+    if (
+      Number.isNaN(price) ||
+      price < 0
+    ) {
+      setMessage(
+        "Bitte einen gültigen Ticketpreis eingeben."
+      );
+      return;
+    }
+
+    if (
+      Number.isNaN(fee) ||
+      fee < 0
+    ) {
+      setMessage(
+        "Bitte eine gültige Servicegebühr eingeben."
+      );
+      return;
+    }
+
+    const updatedBooking: Booking = {
+      ...editingBooking,
+
+      first_name:
+        editFirstName.trim(),
+
+      last_name:
+        editLastName.trim(),
+
+      email:
+        editEmail.trim(),
+
+      phone:
+        editPhone.trim(),
+
+      street:
+        editStreet.trim(),
+
+      postal_code:
+        editPostalCode.trim(),
+
+      city:
+        editCity.trim(),
+
+      notes:
+        editNotes.trim(),
+
+      ticket_count:
+        count,
+
+      ticket_price:
+        price,
+
+      service_fee:
+        fee,
+    };
+
+    try {
+      if (!editingBooking.localOnly) {
+        const response =
+          await fetch(
+            `/api/bookings/${editingBooking.id}`,
+            {
+              method: "PATCH",
+
+              headers: {
+                "Content-Type":
+                  "application/json",
+              },
+
+              body:
+                JSON.stringify({
+                  first_name:
+                    updatedBooking.first_name,
+
+                  last_name:
+                    updatedBooking.last_name,
+
+                  email:
+                    updatedBooking.email,
+
+                  phone:
+                    updatedBooking.phone,
+
+                  street:
+                    updatedBooking.street,
+
+                  postal_code:
+                    updatedBooking.postal_code,
+
+                  city:
+                    updatedBooking.city,
+
+                  notes:
+                    updatedBooking.notes,
+
+                  ticket_count:
+                    updatedBooking.ticket_count,
+
+                  ticket_price:
+                    updatedBooking.ticket_price,
+
+                  service_fee:
+                    updatedBooking.service_fee,
+                }),
+            }
+          );
+
+        const data =
+          await response
+            .json()
+            .catch(
+              () => null
+            );
+
+        if (!response.ok) {
+          throw new Error(
+            data?.detail ??
+              `HTTP ${response.status}`
+          );
+        }
+      }
+
+      setBookingsByPerformance(
+        (current) => ({
+          ...current,
+
+          [selectedPerformanceId]:
+            (
+              current[
+                selectedPerformanceId
+              ] ?? []
+            ).map(
+              (booking) =>
+                booking.id ===
+                editingBooking.id
+                  ? updatedBooking
+                  : booking
+            ),
+        })
+      );
+
+      setAssignmentsByPerformance(
+        (current) => ({
+          ...current,
+
+          [selectedPerformanceId]:
+            (
+              current[
+                selectedPerformanceId
+              ] ?? []
+            ).map(
+              (assignment) =>
+                assignment.booking_id ===
+                editingBooking.id
+                  ? {
+                      ...assignment,
+
+                      first_name:
+                        updatedBooking.first_name,
+
+                      last_name:
+                        updatedBooking.last_name,
+                    }
+                  : assignment
+            ),
+        })
+      );
+
+      closeEditBookingForm();
+
+      setMessage(
+        `${updatedBooking.first_name} ${updatedBooking.last_name} wurde erfolgreich bearbeitet.`
+      );
+    } catch (error) {
+      console.error(error);
+
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Buchung konnte nicht bearbeitet werden."
+      );
+    }
+  }
+
+  function openCustomerConsole(
+    booking: Booking
+  ) {
+    setCustomerConsoleBooking(
+      booking
+    );
+  }
+
+  function closeCustomerConsole() {
+    setCustomerConsoleBooking(
+      null
+    );
+  }
+
+  function resetBookingForm() {
+    setFirstName("");
+    setLastName("");
+    setEmail("");
+    setPhone("");
+    setStreet("");
+    setPostalCode("");
+    setCity("");
+    setNotes("");
+    setTicketCount("2");
+    setTicketPrice("79.90");
+    setServiceFee("3.50");
+  }
+
+  async function saveBookingLocally() {
+    if (!firstName.trim()) {
+      setMessage(
+        "Bitte einen Vornamen eingeben."
+      );
+      return;
+    }
+
+    if (!lastName.trim()) {
+      setMessage(
+        "Bitte einen Nachnamen eingeben."
+      );
+      return;
+    }
+
+    const count =
+      Number(ticketCount);
+
+    const price =
+      Number(ticketPrice);
+
+    const fee =
+      Number(serviceFee);
+
+    if (
+      !Number.isInteger(count) ||
+      count < 1
+    ) {
+      setMessage(
+        "Die Anzahl der Plätze muss mindestens 1 sein."
+      );
+      return;
+    }
+
+    if (
+      Number.isNaN(price) ||
+      price < 0
+    ) {
+      setMessage(
+        "Bitte einen gültigen Ticketpreis eingeben."
+      );
+      return;
+    }
+
+    if (
+      Number.isNaN(fee) ||
+      fee < 0
+    ) {
+      setMessage(
+        "Bitte eine gültige Servicegebühr eingeben."
+      );
+      return;
+    }
+
+    try {
+      setMessage(
+        "Buchung wird gespeichert …"
+      );
+
+      const data = await createBooking({
+      first_name: firstName.trim(),
+      last_name: lastName.trim(),
+      email: email.trim(),
+      phone: phone.trim(),
+      street: street.trim(),
+      postal_code: postalCode.trim(),
+      city: city.trim(),
+      notes: notes.trim(),
+      ticket_count: count,
+      ticket_price: price,
+      service_fee: fee,
+      performance_id: selectedPerformanceId,
+    });
+
+      if (
+        !data?.booking_id ||
+        !data?.booking_number
+      ) {
+        throw new Error(
+          "Das Backend hat keine gültige Buchungs-ID zurückgegeben."
+        );
+      }
+
+      const newBooking: Booking = {
+        id:
+          Number(
+            data.booking_id
+          ),
+
+        booking_number:
+          String(
+            data.booking_number
+          ),
+
+        first_name:
+          firstName.trim(),
+
+        last_name:
+          lastName.trim(),
+
+        email:
+          email.trim(),
+
+        phone:
+          phone.trim(),
+
+        street:
+          street.trim(),
+
+        postal_code:
+          postalCode.trim(),
+
+        city:
+          city.trim(),
+
+        notes:
+          notes.trim(),
+
+        ticket_count:
+          count,
+
+        ticket_price:
+          price,
+
+        service_fee:
+          fee,
+
+        status:
+          "reserviert",
+
+        localOnly:
+          false,
+
+        performanceId:
+          Number(
+            data.performance_id ??
+              selectedPerformanceId
+          ),
+      };
+
+      setBookingsByPerformance(
+        (current) => ({
+          ...current,
+
+          [selectedPerformanceId]:
+            [
+              newBooking,
+              ...(current[
+                selectedPerformanceId
+              ] ?? []),
+            ],
+        })
+      );
+
+      setMessage(
+        `${newBooking.first_name} ${newBooking.last_name} wurde erfolgreich gespeichert.`
+      );
+
+      resetBookingForm();
+
+      setShowBookingForm(
+        false
+      );
+    } catch (error) {
+      console.error(error);
+
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Buchung konnte nicht gespeichert werden."
+      );
+    }
+  }
+
+  const assignmentBySeat =
+    useMemo(() => {
+      const map =
+        new Map<
+          number,
+          Assignment
+        >();
+
+      assignments.forEach(
+        (assignment) => {
+          map.set(
+            assignment.seat_id,
+            assignment
+          );
+        }
+      );
+
+      return map;
+    }, [assignments]);
+
+  const assignedCountByBooking =
+    useMemo(() => {
+      const map =
+        new Map<
+          number,
+          number
+        >();
+
+      assignments.forEach(
+        (assignment) => {
+          map.set(
+            assignment.booking_id,
+
+            (
+              map.get(
+                assignment.booking_id
+              ) ?? 0
+            ) + 1
+          );
+        }
+      );
+
+      return map;
+    }, [assignments]);
+
+  const availableBookingsForSelectedSeat =
+    useMemo(() => {
+      return bookings.filter(
+        (booking) => {
+          const assigned =
+            assignedCountByBooking.get(
+              booking.id
+            ) ?? 0;
+
+          return (
+            booking.ticket_count -
+              assigned >
+            0
+          );
+        }
+      );
+    }, [
+      bookings,
+      assignedCountByBooking,
+    ]);
+
+  function getSeat(
+    row: number,
+    number: number
+  ) {
+    return SEATS.find(
+      (seat) =>
+        seat.row_number === row &&
+        seat.seat_number === number
+    );
+  }
+
+  async function assignBookingToSelectedSeat(
+    bookingId: number
+  ) {
+    if (!selectedSeat) {
+      setMessage(
+        "Bitte zuerst einen Sitzplatz auswählen."
+      );
+      return;
+    }
+
+    if (
+      assignmentBySeat.has(
+        selectedSeat.id
+      )
+    ) {
+      setMessage(
+        "Dieser Platz ist bereits vergeben."
+      );
+      return;
+    }
+
+    const booking =
+      bookings.find(
+        (item) =>
+          item.id === bookingId
+      );
+
+    if (!booking) {
+      return;
+    }
+
+    const assigned =
+      assignedCountByBooking.get(
+        booking.id
+      ) ?? 0;
+
+    if (
+      booking.ticket_count -
+        assigned <=
+      0
+    ) {
+      setMessage(
+        "Für diese Buchung sind keine Plätze mehr offen."
+      );
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        "/api/assignments",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            performance_id:
+              selectedPerformanceId,
+            seat_id:
+              selectedSeat.id,
+            booking_id:
+              booking.id,
+          }),
+        }
+      );
+
+      const data =
+        await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(
+          data?.detail ??
+            `HTTP ${response.status}`
+        );
+      }
+
+      const assignment: Assignment = {
+        id:
+          Number(
+            data.assignment_id
+          ),
+
+        performance_id:
+          selectedPerformanceId,
+
+        seat_id:
+          selectedSeat.id,
+
+        booking_id:
+          booking.id,
+
+        status:
+          "reserviert",
+
+        row_number:
+          selectedSeat.row_number,
+
+        seat_number:
+          selectedSeat.seat_number,
+
+        booking_number:
+          booking.booking_number,
+
+        first_name:
+          booking.first_name,
+
+        last_name:
+          booking.last_name,
+
+        localOnly:
+          false,
+      };
+
+      setAssignmentsByPerformance(
+        (current) => ({
+          ...current,
+
+          [selectedPerformanceId]:
+            [
+              ...(current[
+                selectedPerformanceId
+              ] ?? []),
+
+              assignment,
+            ],
+        })
+      );
+
+      setSelectedBookingForSeat(
+        booking.id
+      );
+
+      setMessage(
+        `${booking.first_name} ${booking.last_name} wurde auf Reihe ${selectedSeat.row_number}, Platz ${selectedSeat.seat_number} gesetzt.`
+      );
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Sitzplatz konnte nicht gespeichert werden."
+      );
+    }
+  }
+
+  async function handleBookingSelection(
+    value: string
+  ) {
+    if (!value) {
+      setSelectedBookingForSeat("");
+      return;
+    }
+
+    const bookingId =
+      Number(value);
+
+    setSelectedBookingForSeat(
+      bookingId
+    );
+
+    await assignBookingToSelectedSeat(
+      bookingId
+    );
+  }
+
+  async function assignBookingByDrag(
+    bookingId: number,
+    seatId: number
+  ) {
+    const seat =
+      SEATS.find(
+        (item) =>
+          item.id === seatId
+      );
+
+    if (!seat) {
+      return;
+    }
+
+    if (
+      assignmentBySeat.has(
+        seatId
+      )
+    ) {
+      setMessage(
+        "Dieser Platz ist bereits vergeben."
+      );
+      return;
+    }
+
+    const booking =
+      bookings.find(
+        (item) =>
+          item.id === bookingId
+      );
+
+    if (!booking) {
+      return;
+    }
+
+    const assigned =
+      assignedCountByBooking.get(
+        bookingId
+      ) ?? 0;
+
+    if (
+      booking.ticket_count -
+        assigned <=
+      0
+    ) {
+      setMessage(
+        "Für diese Buchung sind keine Plätze mehr offen."
+      );
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        "/api/assignments",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify({
+            performance_id:
+              selectedPerformanceId,
+            seat_id:
+              seatId,
+            booking_id:
+              bookingId,
+          }),
+        }
+      );
+
+      const data =
+        await response
+          .json()
+          .catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(
+          data?.detail ??
+            `HTTP ${response.status}`
+        );
+      }
+
+      const assignment: Assignment = {
+        id:
+          Number(
+            data.assignment_id
+          ),
+        performance_id:
+          selectedPerformanceId,
+        seat_id:
+          seatId,
+        booking_id:
+          bookingId,
+        status:
+          "reserviert",
+        row_number:
+          seat.row_number,
+        seat_number:
+          seat.seat_number,
+        booking_number:
+          booking.booking_number,
+        first_name:
+          booking.first_name,
+        last_name:
+          booking.last_name,
+        localOnly:
+          false,
+      };
+
+      setAssignmentsByPerformance(
+        (current) => ({
+          ...current,
+          [selectedPerformanceId]:
+            [
+              ...(current[
+                selectedPerformanceId
+              ] ?? []),
+              assignment,
+            ],
+        })
+      );
+
+      setSelectedSeat(seat);
+      setSelectedBookingForSeat(
+        bookingId
+      );
+      setDraggedBookingId(null);
+
+      setMessage(
+        `${booking.first_name} ${booking.last_name} wurde auf Reihe ${seat.row_number}, Platz ${seat.seat_number} gesetzt und gespeichert.`
+      );
+    } catch (error) {
+      console.error(error);
+
+      setDraggedBookingId(null);
+
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Sitzplatz konnte nicht gespeichert werden."
+      );
+    }
+  }
+
+  async function changeStatus(
+    assignmentId: number,
+    status: string
+  ) {
+    try {
+      const response = await fetch(
+        `/api/assignments/${assignmentId}/status`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            status,
+          }),
+        }
+      );
+
+      const data =
+        await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(
+          data?.detail ??
+            `HTTP ${response.status}`
+        );
+      }
+
+      setAssignmentsByPerformance(
+        (current) => ({
+          ...current,
+
+          [selectedPerformanceId]:
+            (
+              current[
+                selectedPerformanceId
+              ] ?? []
+            ).map(
+              (assignment) =>
+                assignment.id ===
+                assignmentId
+                  ? {
+                      ...assignment,
+                      status:
+                        data.status ??
+                        status,
+                    }
+                  : assignment
+            ),
+        })
+      );
+
+      setMessage(
+        `Status geändert: ${data.status ?? status}`
+      );
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Status konnte nicht gespeichert werden."
+      );
+    }
+  }
+
+  async function freeSeat(
+    assignmentId: number
+  ) {
+    try {
+      const response = await fetch(
+        `/api/assignments/${assignmentId}`,
+        {
+          method: "DELETE",
+        }
+      );
+
+      const data =
+        await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(
+          data?.detail ??
+            `HTTP ${response.status}`
+        );
+      }
+
+      setAssignmentsByPerformance(
+        (current) => ({
+          ...current,
+
+          [selectedPerformanceId]:
+            (
+              current[
+                selectedPerformanceId
+              ] ?? []
+            ).filter(
+              (assignment) =>
+                assignment.id !==
+                assignmentId
+            ),
+        })
+      );
+
+      setSelectedBookingForSeat("");
+
+      setMessage(
+        "Platz wurde dauerhaft freigegeben."
+      );
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Platz konnte nicht freigegeben werden."
+      );
+    }
+  }
+
+  function renderSeat(
+    item: Seat | undefined
+  ) {
+    if (!item) {
+      return (
+        <div
+          className="seat-placeholder"
+          aria-hidden="true"
+        />
+      );
+    }
+
+    const assignment =
+      assignmentBySeat.get(
+        item.id
+      );
+
+    return (
+      <div
+        key={item.id}
+        className="seat-cell"
+      >
+        <button
+          type="button"
+          aria-label={`Reihe ${item.row_number}, Platz ${item.seat_number}`}
+          className={
+            assignment
+              ? `seat seat-${assignment.status}`
+              : "seat seat-free"
+          }
+          onClick={() => {
+            setSelectedSeat(item);
+
+            setSelectedBookingForSeat(
+              assignment
+                ? assignment.booking_id
+                : ""
+            );
+
+            setMessage("");
+          }}
+          onDragOver={(event) =>
+            event.preventDefault()
+          }
+          onDrop={(event) => {
+            event.preventDefault();
+
+            if (
+              draggedBookingId !==
+              null
+            ) {
+              assignBookingByDrag(
+                draggedBookingId,
+                item.id
+              );
+            }
+          }}
+        >
+          {item.seat_number}
+        </button>
+
+        {assignment && (
+          <span className="seat-tooltip">
+            {assignment.last_name}
+          </span>
+        )}
+      </div>
+    );
+  }
+
+  function standardRow(
+    row: number
+  ) {
+    return (
+      <div
+        className="seat-grid-row"
+        key={row}
+      >
+        <div className="row-number">
+          {row}
+        </div>
+
+        <div className="seat-group">
+          {[12, 11, 10, 9, 8, 7].map(
+            (number) =>
+              renderSeat(
+                getSeat(
+                  row,
+                  number
+                )
+              )
+          )}
+        </div>
+
+        <div className="middle-gap" />
+
+        <div className="seat-group">
+          {[6, 5, 4, 3, 2, 1].map(
+            (number) =>
+              renderSeat(
+                getSeat(
+                  row,
+                  number
+                )
+              )
+          )}
+        </div>
+
+        <div className="row-number">
+          {row}
+        </div>
+      </div>
+    );
+  }
+
+  function rowEight() {
+    return (
+      <div className="lower-row row-eight">
+
+        <div className="row-number">
+          8
+        </div>
+
+        <div />
+
+        <div className="seat-group row-eight-left">
+          {[10, 9, 8, 7].map(
+            (number) =>
+              renderSeat(
+                getSeat(
+                  8,
+                  number
+                )
+              )
+          )}
+        </div>
+
+        <div className="lower-gap" />
+
+        <div className="seat-group row-eight-right">
+          {[6, 5, 4, 3, 2, 1].map(
+            (number) =>
+              renderSeat(
+                getSeat(
+                  8,
+                  number
+                )
+              )
+          )}
+        </div>
+
+        <div className="row-number">
+          8
+        </div>
+
+      </div>
+    );
+  }
+
+  function rowNine() {
+    return (
+      <div className="lower-row row-nine">
+
+        <div className="row-number">
+          9
+        </div>
+
+        <div />
+
+        <div className="seat-group row-nine-group">
+          {[
+            12,
+            11,
+            10,
+            9,
+            8,
+            7,
+            6,
+            5,
+            4,
+            3,
+            2,
+            1,
+          ].map(
+            (number) =>
+              renderSeat(
+                getSeat(
+                  9,
+                  number
+                )
+              )
+          )}
+        </div>
+
+        <div className="row-number">
+          9
+        </div>
+
+      </div>
+    );
+  }
+
+  if (!performancesLoaded) {
+    return (
+      <div className="app">
+        <div className="message">
+          Vorstellungen werden geladen …
+        </div>
+      </div>
+    );
+  }
+
+  if (performanceLoadError) {
+    return (
+      <div className="app">
+        <div className="message">
+          {performanceLoadError}
+        </div>
+      </div>
+    );
+  }
+
+  if (!selectedPerformance) {
+    return (
+      <div className="app">
+        <div className="message">
+          Keine Vorstellung vorhanden.
+        </div>
+      </div>
+    );
+  }
+
+  const selectedAssignment =
+    selectedSeat
+      ? assignmentBySeat.get(
+          selectedSeat.id
+        )
+      : undefined;
+
+  return (
+    <div className="app">
+      <button
+        type="button"
+        onClick={() =>
+          window.dispatchEvent(
+            new Event("theater:back")
+          )
+        }
+        style={{
+          position: "fixed",
+          right: "24px",
+          bottom: "24px",
+          zIndex: 9999,
+          padding: "10px 18px",
+          border: "1px solid #ccc",
+          borderRadius: "8px",
+          background: "#fff",
+          color: "#000",
+          fontSize: "15px",
+          cursor: "pointer",
+          boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+        }}
+      >
+        Zurück
+      </button>
+
+
+      <header className="header">
+
+        <div>
+          <h1 style={{ color: "#000" }}>
+            Theater Sitzplatzverwaltung
+          </h1>
+
+          <p>
+            Interne Sitzplatzverwaltung
+          </p>
+        </div>
+
+        <div className="header-actions">
+
+          <select
+            className="performance"
+            value={
+              selectedPerformanceId
+            }
+            onChange={(event) =>
+              changePerformance(
+                Number(
+                  event.target.value
+                )
+              )
+            }
+          >
+            {performances.map(
+              (performance) => (
+                <option
+                  key={
+                    performance.id
+                  }
+                  value={
+                    performance.id
+                  }
+                >
+                  {performance.date} –{" "}
+                  {performance.time} –{" "}
+                  {performance.title}
+                </option>
+              )
+            )}
+          </select>
+
+          
+
+          <button
+            type="button"
+            className="add-day-button"
+            onClick={() => {
+              setPerformanceDate("");
+              setPerformanceTime("19:30");
+              setPerformanceTitle("Dinnershow");
+              setShowPerformanceForm(true);
+              setMessage("");
+            }}
+          >
+            + Tag hinzufügen
+          </button>
+
+        </div>
+      </header>
+
+      <div className="day-banner">
+
+        <div>
+          <strong>
+            {selectedPerformance.date}
+          </strong>
+
+          <span>
+            {selectedPerformance.time} ·{" "}
+            {selectedPerformance.title}
+          </span>
+        </div>
+
+        <button
+          type="button"
+          className="delete-day-button"
+          onClick={
+            deletePerformance
+          }
+        >
+          Tag entfernen
+        </button>
+
+      </div>
+
+      {showPerformanceForm && (
+        <div className="performance-form-card">
+
+          <div className="form-header">
+
+            <div>
+              <h2>
+                Neue Vorstellung
+              </h2>
+
+              <p>
+                Neuer Tag mit eigenem Saalplan und eigenen Buchungen
+              </p>
+            </div>
+
+            <button
+              type="button"
+              className="close-button"
+              onClick={() =>
+                setShowPerformanceForm(false)
+              }
+            >
+              ×
+            </button>
+
+          </div>
+
+          <div className="performance-form-grid">
+
+            <label>
+              Datum
+
+              <input
+                type="date"
+                value={
+                  performanceDate
+                }
+                onChange={(event) =>
+                  setPerformanceDate(
+                    event.target.value
+                  )
+                }
+              />
+            </label>
+
+            <label>
+              Uhrzeit
+
+              <input
+                type="time"
+                value={
+                  performanceTime
+                }
+                onChange={(event) =>
+                  setPerformanceTime(
+                    event.target.value
+                  )
+                }
+              />
+            </label>
+
+            <label>
+              Bezeichnung
+
+              <input
+                value={
+                  performanceTitle
+                }
+                onChange={(event) =>
+                  setPerformanceTitle(
+                    event.target.value
+                  )
+                }
+                placeholder="Dinnershow"
+              />
+            </label>
+
+          </div>
+
+          <div
+            style={{
+              marginBottom: "16px",
+            }}
+          >
+            <label>
+              <div
+                style={{
+                  marginBottom: "6px",
+                  fontWeight: 600,
+                  color: "#000",
+                }}
+              >
+                Saalplan für diese Vorstellung
+              </div>
+
+              <select
+                value={performanceHallPlanType}
+                onChange={(event) =>
+                  setPerformanceHallPlanType(
+                    event.target.value as
+                      | "hall_1"
+                      | "hall_2",
+                  )
+                }
+                style={{
+                  width: "100%",
+                  padding: "11px 12px",
+                  border: "1px solid #ccc",
+                  borderRadius: "8px",
+                  background: "#fff",
+                  color: "#000",
+                }}
+              >
+                <option value="hall_1">
+                  Saalplan 1 – bestehender Saal
+                </option>
+
+                <option value="hall_2">
+                  Saalplan 2 – Tischsaal
+                </option>
+              </select>
+            </label>
+          </div>
+
+          <div className="form-actions">
+
+            <button
+              type="button"
+              className="cancel-button"
+              onClick={() =>
+                setShowPerformanceForm(false)
+              }
+            >
+              Abbrechen
+            </button>
+
+            <button
+              type="button"
+              className="save-button"
+              onClick={
+                addPerformance
+              }
+            >
+              Tag anlegen
+            </button>
+
+          </div>
+
+        </div>
+      )}
+
+      <div className="new-booking-bar">
+
+        <div>
+          <strong>
+            Buchungen für{" "}
+            {selectedPerformance.date}
+          </strong>
+
+          <span>
+            Personen für diesen Tag hinzufügen
+          </span>
+        </div>
+
+        <button
+          type="button"
+          className="new-booking-button"
+          onClick={() =>
+            setShowBookingForm(true)
+          }
+        >
+          + Neue Buchung
+        </button>
+
+      </div>
+
+      {showBookingForm && (
+        <div className="booking-form-card">
+
+          <div className="form-header">
+
+            <div>
+              <h2>
+                Neue Buchung
+              </h2>
+
+              <p>
+                Für{" "}
+                {selectedPerformance.date}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              className="close-button"
+              onClick={() => {
+                setShowBookingForm(false);
+                resetBookingForm();
+              }}
+            >
+              ×
+            </button>
+
+          </div>
+
+          <div className="form-grid">
+
+            <label>
+              Vorname
+
+              <input
+                value={firstName}
+                onChange={(event) =>
+                  setFirstName(
+                    event.target.value
+                  )
+                }
+                placeholder="Max"
+              />
+            </label>
+
+            <label>
+              Nachname
+
+              <input
+                value={lastName}
+                onChange={(event) =>
+                  setLastName(
+                    event.target.value
+                  )
+                }
+                placeholder="Mustermann"
+              />
+            </label>
+
+            <label>
+              E-Mail
+
+              <input
+                type="email"
+                value={email}
+                onChange={(event) =>
+                  setEmail(
+                    event.target.value
+                  )
+                }
+                placeholder="max@example.de"
+              />
+            </label>
+
+            <label>
+              Telefon
+
+              <input
+                value={phone}
+                onChange={(event) =>
+                  setPhone(
+                    event.target.value
+                  )
+                }
+                placeholder="01234 567890"
+              />
+            </label>
+
+            <label>
+              Straße & Hausnummer
+
+              <input
+                value={street}
+                onChange={(event) =>
+                  setStreet(
+                    event.target.value
+                  )
+                }
+                placeholder="Musterstraße 12"
+              />
+            </label>
+
+            <label>
+              PLZ
+
+              <input
+                value={postalCode}
+                onChange={(event) =>
+                  setPostalCode(
+                    event.target.value
+                  )
+                }
+                placeholder="67157"
+              />
+            </label>
+
+            <label>
+              Ort
+
+              <input
+                value={city}
+                onChange={(event) =>
+                  setCity(
+                    event.target.value
+                  )
+                }
+                placeholder="Wachenheim"
+              />
+            </label>
+
+            <label className="full-width-field">
+              Kundennotizen
+
+              <textarea
+                style={{
+                  backgroundColor:
+                    "#ffffff",
+                  color:
+                    "#111827",
+                }}
+                value={notes}
+                onChange={(event) =>
+                  setNotes(
+                    event.target.value
+                  )
+                }
+                placeholder="Interne Hinweise zum Kunden …"
+                rows={4}
+              />
+            </label>
+
+            <label>
+              Plätze
+
+              <input
+                type="number"
+                min="1"
+                value={ticketCount}
+                onChange={(event) =>
+                  setTicketCount(
+                    event.target.value
+                  )
+                }
+              />
+            </label>
+
+            <label>
+              Ticketpreis
+
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={ticketPrice}
+                onChange={(event) =>
+                  setTicketPrice(
+                    event.target.value
+                  )
+                }
+              />
+            </label>
+
+            <label>
+              Servicegebühr
+
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={serviceFee}
+                onChange={(event) =>
+                  setServiceFee(
+                    event.target.value
+                  )
+                }
+              />
+            </label>
+
+          </div>
+
+          <div className="form-actions">
+
+            <button
+              type="button"
+              className="cancel-button"
+              onClick={() => {
+                setShowBookingForm(false);
+                resetBookingForm();
+              }}
+            >
+              Abbrechen
+            </button>
+
+            <button
+              type="button"
+              className="save-button"
+              onClick={
+                saveBookingLocally
+              }
+            >
+              Buchung speichern
+            </button>
+
+          </div>
+
+        </div>
+      )}
+
+      {showEditBookingForm &&
+        editingBooking && (
+          <div className="booking-form-card edit-booking-card">
+
+            <div className="form-header">
+
+              <div>
+                <h2>
+                  Kunde bearbeiten
+                </h2>
+
+                <p>
+                  {editingBooking.booking_number} ·{" "}
+                  {selectedPerformance.date}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                className="close-button"
+                onClick={
+                  closeEditBookingForm
+                }
+              >
+                ×
+              </button>
+
+            </div>
+
+            <div className="form-grid">
+
+              <label>
+                Vorname
+
+                <input
+                  value={
+                    editFirstName
+                  }
+                  onChange={(event) =>
+                    setEditFirstName(
+                      event.target.value
+                    )
+                  }
+                  placeholder="Max"
+                />
+              </label>
+
+              <label>
+                Nachname
+
+                <input
+                  value={
+                    editLastName
+                  }
+                  onChange={(event) =>
+                    setEditLastName(
+                      event.target.value
+                    )
+                  }
+                  placeholder="Mustermann"
+                />
+              </label>
+
+              <label>
+                E-Mail
+
+                <input
+                  type="email"
+                  value={
+                    editEmail
+                  }
+                  onChange={(event) =>
+                    setEditEmail(
+                      event.target.value
+                    )
+                  }
+                  placeholder="max@example.de"
+                />
+              </label>
+
+              <label>
+                Telefon
+
+                <input
+                  value={
+                    editPhone
+                  }
+                  onChange={(event) =>
+                    setEditPhone(
+                      event.target.value
+                    )
+                  }
+                  placeholder="01234 567890"
+                />
+              </label>
+
+              <label>
+                Straße & Hausnummer
+
+                <input
+                  value={
+                    editStreet
+                  }
+                  onChange={(event) =>
+                    setEditStreet(
+                      event.target.value
+                    )
+                  }
+                  placeholder="Musterstraße 12"
+                />
+              </label>
+
+              <label>
+                PLZ
+
+                <input
+                  value={
+                    editPostalCode
+                  }
+                  onChange={(event) =>
+                    setEditPostalCode(
+                      event.target.value
+                    )
+                  }
+                  placeholder="67157"
+                />
+              </label>
+
+              <label>
+                Ort
+
+                <input
+                  value={
+                    editCity
+                  }
+                  onChange={(event) =>
+                    setEditCity(
+                      event.target.value
+                    )
+                  }
+                  placeholder="Wachenheim"
+                />
+              </label>
+
+              <label className="full-width-field">
+                Kundennotizen
+
+                <textarea
+                  style={{
+                    backgroundColor:
+                      "#ffffff",
+                    color:
+                      "#111827",
+                  }}
+                  value={
+                    editNotes
+                  }
+                  onChange={(event) =>
+                    setEditNotes(
+                      event.target.value
+                    )
+                  }
+                  placeholder="Interne Hinweise zum Kunden …"
+                  rows={4}
+                />
+              </label>
+
+              <label>
+                Plätze
+
+                <input
+                  type="number"
+                  min="1"
+                  value={
+                    editTicketCount
+                  }
+                  onChange={(event) =>
+                    setEditTicketCount(
+                      event.target.value
+                    )
+                  }
+                />
+              </label>
+
+              <label>
+                Ticketpreis
+
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={
+                    editTicketPrice
+                  }
+                  onChange={(event) =>
+                    setEditTicketPrice(
+                      event.target.value
+                    )
+                  }
+                />
+              </label>
+
+              <label>
+                Servicegebühr
+
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={
+                    editServiceFee
+                  }
+                  onChange={(event) =>
+                    setEditServiceFee(
+                      event.target.value
+                    )
+                  }
+                />
+              </label>
+
+            </div>
+
+            <div className="form-actions">
+
+              <button
+                type="button"
+                className="cancel-button"
+                onClick={
+                  closeEditBookingForm
+                }
+              >
+                Abbrechen
+              </button>
+
+              <button
+                type="button"
+                className="save-button"
+                onClick={
+                  saveEditedBooking
+                }
+              >
+                Änderungen speichern
+              </button>
+
+            </div>
+
+          </div>
+        )}
+
+      {customerConsoleBooking && (
+        <CustomerConsole
+          bookingId={
+            customerConsoleBooking.id
+          }
+          firstName={
+            customerConsoleBooking.first_name
+          }
+          lastName={
+            customerConsoleBooking.last_name
+          }
+          bookingNumber={
+            customerConsoleBooking.booking_number
+          }
+          ticketCount={
+            customerConsoleBooking.ticket_count
+          }
+          status={
+            customerConsoleBooking.status
+          }
+          onClose={
+            closeCustomerConsole
+          }
+        />
+      )}
+
+      {message && (
+        <div className="message">
+          {message}
+        </div>
+      )}
+
+      <div className="main-layout">
+
+        <aside className="bookings">
+
+          <div className="bookings-title">
+            <h2>
+              Buchungen
+            </h2>
+
+            <span>
+              {bookings.length}
+            </span>
+          </div>
+
+          <div className="booking-search">
+
+            <input
+              type="search"
+              value={searchTerm}
+              onChange={(event) =>
+                setSearchTerm(
+                  event.target.value
+                )
+              }
+              placeholder="Name suchen …"
+            />
+
+            {searchTerm && (
+              <button
+                type="button"
+                className="clear-search"
+                onClick={() =>
+                  setSearchTerm("")
+                }
+                aria-label="Suche löschen"
+              >
+                ×
+              </button>
+            )}
+
+          </div>
+
+          {searchTerm && (
+            <div className="search-result-info">
+              {filteredBookings.length} von{" "}
+              {bookings.length} Buchungen
+            </div>
+          )}
+
+          {bookings.length === 0 ? (
+            <p className="muted">
+              Noch keine Buchungen für diesen Tag.
+            </p>
+          ) : filteredBookings.length === 0 ? (
+            <div className="no-search-results">
+              Keine Buchung gefunden.
+            </div>
+          ) : (
+            filteredBookings.map(
+              (booking) => {
+
+                const assigned =
+                  getAssignedCount(
+                    booking.id
+                  );
+
+                const open =
+                  booking.ticket_count -
+                  assigned;
+
+                return (
+                  <div
+                    key={booking.id}
+                    className="booking local-booking"
+                    draggable={open > 0}
+                    onDragStart={() =>
+                      setDraggedBookingId(
+                        booking.id
+                      )
+                    }
+                    onDragEnd={() =>
+                      setDraggedBookingId(null)
+                    }
+                  >
+
+                    <strong>
+                      {booking.first_name}{" "}
+                      {booking.last_name}
+                    </strong>
+
+                    <span>
+                      {booking.booking_number}
+                    </span>
+
+                    <span>
+                      {booking.ticket_count}{" "}
+                      {booking.ticket_count === 1
+                        ? "Platz"
+                        : "Plätze"}
+                    </span>
+
+                    <span>
+                      Zugewiesen:{" "}
+                      {assigned}
+                    </span>
+
+                    <span
+                      className={
+                        open > 0
+                          ? "open"
+                          : "done"
+                      }
+                    >
+                      Offen: {open}
+                    </span>
+
+                    <small className="local-badge">
+                      {selectedPerformance.date}
+                    </small>
+
+                    <button
+                      type="button"
+                      title="Kunden-Konsole öffnen"
+                      aria-label={`Kunden-Konsole für ${booking.first_name} ${booking.last_name} öffnen`}
+                      style={{
+                        width: "100%",
+                        padding: "5px 7px",
+                        border:
+                          "1px solid #cbd5e1",
+                        borderRadius: 5,
+                        background:
+                          "#ffffff",
+                        color:
+                          "#334155",
+                        fontSize: 9,
+                        cursor: "pointer",
+                      }}
+                      onClick={(event) => {
+                        event.stopPropagation();
+
+                        openCustomerConsole(
+                          booking
+                        );
+                      }}
+                    >
+                      📋 Konsole
+                    </button>
+
+                    <button
+                      type="button"
+                      className="edit-booking-button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+
+                        startEditBooking(
+                          booking
+                        );
+                      }}
+                    >
+                      ✏️ Bearbeiten
+                    </button>
+
+                    <button
+                      type="button"
+                      className="delete-booking-button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+
+                        deleteBooking(
+                          booking
+                        );
+                      }}
+                    >
+                      🗑 Löschen
+                    </button>
+
+                  </div>
+                );
+              }
+            )
+          )}
+
+          <p className="drag-hint">
+            Buchung auf einen freien Sitz ziehen.
+          </p>
+
+        </aside>
+
+        <main className="hall">
+
+          
+      
+
+{selectedPerformance?.hall_plan_type !== "hall_2" && (
+  <div className="stage">
+    BÜHNE
+  </div>
+)}
+
+          <div className="day-statistics">
+
+            <div className="stat-card stat-total">
+              <span>Gesamt</span>
+              <strong>{totalSeats}</strong>
+              <small>Plätze</small>
+            </div>
+
+            <div className="stat-card stat-occupied">
+              <span>Belegt</span>
+              <strong>{occupiedSeats}</strong>
+              <small>Plätze</small>
+            </div>
+
+            <div className="stat-card stat-free">
+              <span>Frei</span>
+              <strong>{freeSeats}</strong>
+              <small>Plätze</small>
+            </div>
+
+            <div className="stat-card stat-paid">
+              <span>Bezahlt</span>
+              <strong>{paidSeats}</strong>
+              <small>Plätze</small>
+            </div>
+
+            <div className="stat-card stat-reserved">
+              <span>Reserviert</span>
+              <strong>{reservedSeats}</strong>
+              <small>Plätze</small>
+            </div>
+
+            {hinterlegtSeats > 0 && (
+              <div className="stat-card stat-deposited">
+                <span>Hinterlegt</span>
+                <strong>{hinterlegtSeats}</strong>
+                <small>Plätze</small>
+              </div>
+            )}
+
+            {cancelledSeats > 0 && (
+              <div className="stat-card stat-cancelled">
+                <span>Storniert</span>
+                <strong>{cancelledSeats}</strong>
+                <small>Plätze</small>
+              </div>
+            )}
+
+          </div>
+
+          {selectedPerformance.hall_plan_type === "hall_2" ? (
+            <TischsaalPlan />
+          ) : (
+            <div className="seat-plan">
+              <section className="plan-block first">
+                {standardRow(1)}
+              </section>
+
+              <section className="plan-block">
+                {standardRow(2)}
+                {standardRow(3)}
+              </section>
+
+              <section className="plan-block">
+                {standardRow(4)}
+                {standardRow(5)}
+              </section>
+
+              <section className="plan-block">
+                {standardRow(6)}
+                {standardRow(7)}
+              </section>
+
+              <section className="plan-block lower">
+
+                <div className="technology">
+                  Technik
+                </div>
+
+                {rowEight()}
+                {rowNine()}
+
+              </section>
+            </div>
+          )}
+
+        </main>
+
+        <aside className="details">
+
+          <h2>
+            Sitzplatz
+          </h2>
+
+          {!selectedSeat ? (
+            <p className="muted">
+              Klicke auf einen Sitzplatz.
+            </p>
+          ) : (
+            <>
+
+              <div className="details-line">
+                <span>Reihe</span>
+
+                <strong>
+                  {selectedSeat.row_number}
+                </strong>
+              </div>
+
+              <div className="details-line">
+                <span>Platz</span>
+
+                <strong>
+                  {selectedSeat.seat_number}
+                </strong>
+              </div>
+
+              <hr />
+
+              <label className="booking-select-label">
+                Person diesem Platz zuweisen
+              </label>
+
+              <select
+                className="person-select"
+                value={
+                  selectedAssignment
+                    ? selectedAssignment.booking_id
+                    : selectedBookingForSeat
+                }
+                onChange={(event) =>
+                  handleBookingSelection(
+                    event.target.value
+                  )
+                }
+              >
+
+                <option value="">
+                  Person auswählen …
+                </option>
+
+                {availableBookingsForSelectedSeat.map(
+                  (booking) => {
+
+                    const open =
+                      booking.ticket_count -
+                      (
+                        assignedCountByBooking.get(
+                          booking.id
+                        ) ?? 0
+                      );
+
+                    async function handleLogin(
+    event: FormEvent
+  ) {
+    event.preventDefault();
+
+    setLoginError("");
+    setLoginLoading(true);
+
+    try {
+      const response = await fetch(
+        "/api/login",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify({
+            username:
+              loginUsername,
+            password:
+              loginPassword,
+          }),
+        }
+      );
+
+      const data =
+        await response
+          .json()
+          .catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(
+          data?.detail ??
+            "Anmeldung fehlgeschlagen."
+        );
+      }
+
+      localStorage.setItem(
+        "theater.loggedInUser",
+        JSON.stringify(data)
+      );
+
+      setLoggedInUser(data);
+      setLoginPassword("");
+    } catch (error) {
+      setLoginError(
+        error instanceof Error
+          ? error.message
+          : "Anmeldung fehlgeschlagen."
+      );
+    } finally {
+      setLoginLoading(false);
+    }
+  }
+
+  if (!loggedInUser) {
+    return (
+      <div className="app-shell">
+        <main className="login-page">
+          <form
+            className="login-card"
+            onSubmit={handleLogin}
+          >
+            <h1>TheaterSoftware</h1>
+
+            <p className="muted">
+              Bitte anmelden
+            </p>
+
+            <label>
+              Benutzername
+              <input
+                type="text"
+                value={loginUsername}
+                onChange={(event) =>
+                  setLoginUsername(
+                    event.target.value
+                  )
+                }
+                autoComplete="username"
+                required
+              />
+            </label>
+
+            <label>
+              Passwort
+              <input
+                type="password"
+                value={loginPassword}
+                onChange={(event) =>
+                  setLoginPassword(
+                    event.target.value
+                  )
+                }
+                autoComplete="current-password"
+                required
+              />
+            </label>
+
+            {loginError && (
+              <p className="error-message">
+                {loginError}
+              </p>
+            )}
+
+            <button
+              type="submit"
+              disabled={loginLoading}
+            >
+              {loginLoading
+                ? "Anmelden ..."
+                : "Anmelden"}
+            </button>
+          </form>
+        </main>
+      </div>
+    );
+  }
+
+  return (
+                      <option
+                        key={booking.id}
+                        value={booking.id}
+                      >
+                        {booking.last_name},{" "}
+                        {booking.first_name} –{" "}
+                        {open}{" "}
+                        {open === 1
+                          ? "Platz offen"
+                          : "Plätze offen"}
+                      </option>
+                    );
+                  }
+                )}
+
+              </select>
+
+              {selectedAssignment && (
+                <>
+
+                  <div className="assigned-person">
+
+                    <span>
+                      Aktuell zugewiesen
+                    </span>
+
+                    <strong>
+                      {selectedAssignment.first_name}{" "}
+                      {selectedAssignment.last_name}
+                    </strong>
+
+                  </div>
+
+                  <label className="status-label">
+                    Status
+                  </label>
+
+                  <select
+                    className="status-select"
+                    value={
+                      selectedAssignment.status
+                    }
+                    onChange={(event) =>
+                      changeStatus(
+                        selectedAssignment.id,
+                        event.target.value
+                      )
+                    }
+                  >
+
+                    <option value="reserviert">
+                      Reserviert
+                    </option>
+
+                    <option value="bezahlt">
+                      Bezahlt
+                    </option>
+
+                    <option value="hinterlegt">
+                      Hinterlegt
+                    </option>
+
+                    <option value="storniert">
+                      Storniert
+                    </option>
+
+                  </select>
+
+                  <button
+                    type="button"
+                    className="free-button"
+                    onClick={() =>
+                      freeSeat(
+                        selectedAssignment.id
+                      )
+                    }
+                  >
+                    Platz freigeben
+                  </button>
+
+                </>
+              )}
+
+            </>
+          )}
+
+        </aside>
+
+      </div>
+    </div>
+  );
+}
+
+export default App;
