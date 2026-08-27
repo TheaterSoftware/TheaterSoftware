@@ -1442,7 +1442,6 @@ def get_performance(
                 """,
                 (
                     performance_id,
-                    performance_id,
                 ),
             )
 
@@ -1463,7 +1462,7 @@ def get_performance(
         "start_time": (
             row[3].isoformat()
         ),
-        "hall_plan_type": row[4] or "standard",
+        "hall_plan_type": row[4] or "hall_1",
         "created_at": (
             row[5].isoformat()
             if row[4]
@@ -2454,19 +2453,32 @@ def delete_booking(
                 (booking_id,),
             )
 
-            # Buchung entfernen.
-            # Rechnungspositionen der Buchung entfernen.
+            # Rechnungspositionen entfernen,
+            # falls diese Tabelle vorhanden ist.
             cur.execute(
                 """
-                DELETE FROM invoice_items
-                WHERE invoice_id IN (
-                    SELECT id
-                    FROM invoices
-                    WHERE booking_id = %s
+                SELECT to_regclass(
+                    'public.invoice_items'
                 )
-                """,
-                (booking_id,),
+                """
             )
+
+            invoice_items_table = (
+                cur.fetchone()[0]
+            )
+
+            if invoice_items_table is not None:
+                cur.execute(
+                    """
+                    DELETE FROM invoice_items
+                    WHERE invoice_id IN (
+                        SELECT id
+                        FROM invoices
+                        WHERE booking_id = %s
+                    )
+                    """,
+                    (booking_id,),
+                )
 
             # Danach die Rechnungen entfernen.
             cur.execute(

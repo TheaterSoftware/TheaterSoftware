@@ -3599,11 +3599,30 @@ const [performanceDate, setPerformanceDate] =
                   <button
                     type="button"
                     className="free-button"
-                    onClick={() =>
+                    onClick={() => {
+                      const confirmation =
+                        window.prompt(
+                          'Zum Freigeben bitte genau "Platz freigeben" eingeben.'
+                        );
+
+                      if (confirmation === null) {
+                        return;
+                      }
+
+                      if (
+                        confirmation !==
+                        "Platz freigeben"
+                      ) {
+                        window.alert(
+                          "Eingabe stimmt nicht. Der Platz wurde nicht freigegeben."
+                        );
+                        return;
+                      }
+
                       freeSeat(
                         selectedAssignment.id
-                      )
-                    }
+                      );
+                    }}
                   >
                     Platz freigeben
                   </button>

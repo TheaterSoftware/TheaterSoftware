@@ -5486,3 +5486,17 @@ select option {
   gap: 14px !important;
 }
 
+
+
+/* HIDE INTERNAL DAY MANAGEMENT BUTTONS */
+.add-day-button,
+.delete-day-button {
+  display: none !important;
+}
+
+
+/* SEAT DETAILS TITLE BLACK */
+.details > h2 {
+  color: #000000 !important;
+  opacity: 1 !important;
+}
