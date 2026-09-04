@@ -30,7 +30,17 @@ type Performance = {
   start_time?: string;
   date?: string;
   time?: string;
+  price_from?: number;
+  price_breakdown?: {
+    subtotal_gross?: number;
+  };
 };
+
+function performanceTicketPrice(performance?: Performance) {
+  const subtotal = Number(performance?.price_breakdown?.subtotal_gross);
+  if (Number.isFinite(subtotal) && subtotal >= 0) return subtotal;
+  return Math.round((Number(performance?.price_from || 0) / 1.1) * 100) / 100;
+}
 
 type Props = {
   booking: Booking;
@@ -62,6 +72,10 @@ export default function BookingEditPanel({
       booking.performance_id,
     ),
   );
+
+  const [ticketCount, setTicketCount] = useState(booking.ticket_count);
+  const [ticketPrice, setTicketPrice] = useState(booking.ticket_price);
+  const [serviceFee, setServiceFee] = useState(booking.service_fee);
 
   const [
     showSeatPlan,
@@ -147,23 +161,11 @@ export default function BookingEditPanel({
                   ) ?? "",
                 ),
               ticket_count:
-                Number(
-                  formData.get(
-                    "ticket_count",
-                  ),
-                ),
+                ticketCount,
               ticket_price:
-                Number(
-                  formData.get(
-                    "ticket_price",
-                  ),
-                ),
+                ticketPrice,
               service_fee:
-                Number(
-                  formData.get(
-                    "service_fee",
-                  ),
-                ),
+                serviceFee,
               performance_id:
                 Number(selectedPerformanceId) ||
                 booking.performance_id,
@@ -375,14 +377,23 @@ export default function BookingEditPanel({
                     selectedPerformanceId
                   }
                   onChange={(event) => {
+                    const nextPerformanceId = Number(event.target.value);
                     setSelectedPerformanceId(
                       event.target.value,
                     );
 
+                    if (nextPerformanceId === booking.performance_id) {
+                      setTicketPrice(booking.ticket_price);
+                      setServiceFee(booking.service_fee);
+                    } else {
+                      const nextPerformance = performances.find((item) => item.id === nextPerformanceId);
+                      const nextTicketPrice = performanceTicketPrice(nextPerformance);
+                      setTicketPrice(nextTicketPrice);
+                      setServiceFee(Math.round(nextTicketPrice * ticketCount * 0.1 * 100) / 100);
+                    }
+
                     if (
-                      Number(
-                        event.target.value,
-                      ) !==
+                      nextPerformanceId !==
                       booking.performance_id
                     ) {
                       setShowSeatPlan(false);
@@ -421,36 +432,39 @@ export default function BookingEditPanel({
                   name="ticket_count"
                   type="number"
                   min="1"
-                  defaultValue={
-                    booking.ticket_count
-                  }
+                  value={ticketCount}
+                  onChange={(event) => {
+                    const nextCount = Math.max(1, Math.round(Number(event.target.value) || 1));
+                    setTicketCount(nextCount);
+                    setServiceFee(Math.round(ticketPrice * nextCount * 0.1 * 100) / 100);
+                  }}
                 />
               </label>
 
               <label>
-                Preis / Ticket
+                Preis je Ticket vor Service
                 <input
                   name="ticket_price"
                   type="number"
                   step="0.01"
                   min="0"
-                  defaultValue={
-                    booking.ticket_price
-                  }
+                  value={ticketPrice}
+                  readOnly
                 />
+                <small>Mit der Buchung fest gespeichert.</small>
               </label>
 
               <label>
-                VVK + Versand / Service
+                Servicepauschale
                 <input
                   name="service_fee"
                   type="number"
                   step="0.01"
                   min="0"
-                  defaultValue={
-                    booking.service_fee
-                  }
+                  value={serviceFee}
+                  readOnly
                 />
+                <small>Versand wird getrennt in der Rechnung gewählt.</small>
               </label>
 
               <div className="booking-edit-options-row">

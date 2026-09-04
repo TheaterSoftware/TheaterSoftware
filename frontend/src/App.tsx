@@ -51,7 +51,17 @@ type Performance = {
   time: string;
   title: string;
   hall_plan_type: "hall_1" | "hall_2";
+  price_from?: number;
+  price_breakdown?: {
+    subtotal_gross?: number;
+  };
 };
+
+function performanceTicketPrice(performance?: Performance | null) {
+  const subtotal = Number(performance?.price_breakdown?.subtotal_gross);
+  if (Number.isFinite(subtotal) && subtotal >= 0) return subtotal;
+  return Math.round((Number(performance?.price_from || 0) / 1.1) * 100) / 100;
+}
 
 function createSeats(): Seat[] {
   const seats: Seat[] = [];
@@ -225,10 +235,10 @@ const [performanceDate, setPerformanceDate] =
     useState("2");
 
   const [ticketPrice, setTicketPrice] =
-    useState("79.90");
+    useState("0.00");
 
   const [serviceFee, setServiceFee] =
-    useState("3.50");
+    useState("0.00");
 
   const [showEditBookingForm, setShowEditBookingForm] =
     useState(false);
@@ -274,6 +284,14 @@ const [performanceDate, setPerformanceDate] =
       (performance) =>
         performance.id === selectedPerformanceId
     ) ?? performances[0] ?? null;
+
+  useEffect(() => {
+    if (!showBookingForm || !selectedPerformance) return;
+    const unitPrice = performanceTicketPrice(selectedPerformance);
+    const count = Math.max(1, Number(ticketCount) || 1);
+    setTicketPrice(unitPrice.toFixed(2));
+    setServiceFee((Math.round(unitPrice * count * 0.1 * 100) / 100).toFixed(2));
+  }, [showBookingForm, selectedPerformance, ticketCount]);
 
   const bookings =
     bookingsByPerformance[selectedPerformanceId] ?? [];
@@ -336,6 +354,8 @@ const [performanceDate, setPerformanceDate] =
                 item.hall_plan_type === "hall_2"
                   ? "hall_2"
                   : "hall_1",
+              price_from: Number(item.price_from || 0),
+              price_breakdown: item.price_breakdown,
             };
           });
 
@@ -1083,7 +1103,7 @@ const [performanceDate, setPerformanceDate] =
       fee < 0
     ) {
       setMessage(
-        "Bitte eine gültige Servicegebühr eingeben."
+        "Bitte eine gültige Servicepauschale eingeben."
       );
       return;
     }
@@ -1279,8 +1299,8 @@ const [performanceDate, setPerformanceDate] =
     setCity("");
     setNotes("");
     setTicketCount("2");
-    setTicketPrice("79.90");
-    setServiceFee("3.50");
+    setTicketPrice("0.00");
+    setServiceFee("0.00");
   }
 
   async function saveBookingLocally() {
@@ -1332,7 +1352,7 @@ const [performanceDate, setPerformanceDate] =
       fee < 0
     ) {
       setMessage(
-        "Bitte eine gültige Servicegebühr eingeben."
+        "Bitte eine gültige Servicepauschale eingeben."
       );
       return;
     }
@@ -1405,10 +1425,10 @@ const [performanceDate, setPerformanceDate] =
           count,
 
         ticket_price:
-          price,
+          Number(data.ticket_price ?? price),
 
         service_fee:
-          fee,
+          Number(data.service_fee ?? fee),
 
         status:
           "reserviert",
@@ -2681,34 +2701,26 @@ const [performanceDate, setPerformanceDate] =
             </label>
 
             <label>
-              Ticketpreis
+              Preis je Ticket vor Service
 
               <input
                 type="number"
                 min="0"
                 step="0.01"
                 value={ticketPrice}
-                onChange={(event) =>
-                  setTicketPrice(
-                    event.target.value
-                  )
-                }
+                readOnly
               />
             </label>
 
             <label>
-              Servicegebühr
+              Servicepauschale
 
               <input
                 type="number"
                 min="0"
                 step="0.01"
                 value={serviceFee}
-                onChange={(event) =>
-                  setServiceFee(
-                    event.target.value
-                  )
-                }
+                readOnly
               />
             </label>
 
@@ -2918,16 +2930,17 @@ const [performanceDate, setPerformanceDate] =
                   value={
                     editTicketCount
                   }
-                  onChange={(event) =>
-                    setEditTicketCount(
-                      event.target.value
-                    )
-                  }
+                  onChange={(event) => {
+                    const nextValue = event.target.value;
+                    const nextCount = Math.max(1, Number(nextValue) || 1);
+                    setEditTicketCount(nextValue);
+                    setEditServiceFee((Math.round(Number(editTicketPrice) * nextCount * 0.1 * 100) / 100).toFixed(2));
+                  }}
                 />
               </label>
 
               <label>
-                Ticketpreis
+                Preis je Ticket vor Service
 
                 <input
                   type="number"
@@ -2936,16 +2949,12 @@ const [performanceDate, setPerformanceDate] =
                   value={
                     editTicketPrice
                   }
-                  onChange={(event) =>
-                    setEditTicketPrice(
-                      event.target.value
-                    )
-                  }
+                  readOnly
                 />
               </label>
 
               <label>
-                Servicegebühr
+                Servicepauschale
 
                 <input
                   type="number"
@@ -2954,11 +2963,7 @@ const [performanceDate, setPerformanceDate] =
                   value={
                     editServiceFee
                   }
-                  onChange={(event) =>
-                    setEditServiceFee(
-                      event.target.value
-                    )
-                  }
+                  readOnly
                 />
               </label>
 

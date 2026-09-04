@@ -10,6 +10,7 @@ type User = {
   locked_until: string | null;
   permanently_locked: boolean;
   password_reset_until: string | null;
+  can_manage_password_resets: boolean;
 };
 
 type Props = {
@@ -25,6 +26,7 @@ export default function UserAdmin({ onBack }: Props) {
   const loggedInUser = JSON.parse(
     localStorage.getItem("theater.loggedInUser") || "{}"
   );
+  const isFullAdmin = loggedInUser.role === "admin";
 
   async function loadUsers() {
     setLoading(true);
@@ -213,6 +215,39 @@ export default function UserAdmin({ onBack }: Props) {
     }
   }
 
+  async function togglePasswordResetPermission(user: User) {
+    const action = user.can_manage_password_resets ? "entziehen" : "erteilen";
+    const confirmed = window.confirm(
+      `Berechtigung „Passwortfreigaben verwalten“ für ${user.display_name} ${action}?`
+    );
+    if (!confirmed) return;
+
+    setError("");
+    setMessage("");
+    try {
+      const response = await fetch(
+        `/api/admin/users/${user.id}/toggle-password-reset-permission`,
+        {
+          method: "POST",
+          headers: {
+            "X-User-Id": loggedInUser.user_id?.toString() || "",
+            "X-User-Name": loggedInUser.username || "",
+          },
+        }
+      );
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(data?.detail || `Berechtigung konnte nicht ${action} werden.`);
+      }
+      setMessage(
+        `Die Berechtigung für Passwortfreigaben wurde ${user.can_manage_password_resets ? "entzogen" : "erteilt"}.`
+      );
+      await loadUsers();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Berechtigung konnte nicht geändert werden.");
+    }
+  }
+
   function statusText(user: User) {
     if (!user.is_active) {
       return "Deaktiviert";
@@ -262,6 +297,7 @@ export default function UserAdmin({ onBack }: Props) {
               style={{
                 margin: 0,
                 fontSize: "32px",
+                color: "#111111",
               }}
             >
               Mitarbeiter
@@ -369,6 +405,19 @@ export default function UserAdmin({ onBack }: Props) {
                       {user.username} · {user.role}
                     </div>
 
+                    {(user.role === "admin" || user.can_manage_password_resets) && (
+                      <div
+                        style={{
+                          marginTop: "6px",
+                          color: "#176b17",
+                          fontSize: "14px",
+                          fontWeight: 600,
+                        }}
+                      >
+                        Darf Passwortfreigaben verwalten
+                      </div>
+                    )}
+
                     <div
                       style={{
                         marginTop: "8px",
@@ -422,7 +471,8 @@ export default function UserAdmin({ onBack }: Props) {
                       justifyContent: "flex-end",
                     }}
                   >
-                    {(user.permanently_locked ||
+                    {(isFullAdmin || user.role !== "admin") &&
+                      (user.permanently_locked ||
                       statusText(user) ===
                         "Vorübergehend gesperrt") && (
                       <button
@@ -443,44 +493,60 @@ export default function UserAdmin({ onBack }: Props) {
                       </button>
                     )}
 
-                    <button
-                      type="button"
-                      onClick={() =>
-                        authorizePasswordReset(user)
-                      }
-                      style={{
-                        padding: "10px 14px",
-                        border: "1px solid #ccc",
-                        borderRadius: "8px",
-                        background: "#fff",
-                        color: "#000",
-                        cursor: "pointer",
-                      }}
-                    >
-                      Passwort-Reset für 1 Stunde freigeben
-                    </button>
+                    {(isFullAdmin || user.role !== "admin") && (
+                      <button
+                        type="button"
+                        onClick={() => authorizePasswordReset(user)}
+                        style={{
+                          padding: "10px 14px",
+                          border: "1px solid #ccc",
+                          borderRadius: "8px",
+                          background: "#fff",
+                          color: "#000",
+                          cursor: "pointer",
+                        }}
+                      >
+                        Passwort-Reset für 1 Stunde freigeben
+                      </button>
+                    )}
 
-                    <button
-                      type="button"
-                      onClick={() =>
-                        toggleActive(user)
-                      }
-                      style={{
-                        padding: "10px 14px",
-                        border: "1px solid #ccc",
-                        borderRadius: "8px",
-                        background: "#fff",
-                        color: user.is_active
-                          ? "#b00000"
-                          : "#176b17",
-                        cursor: "pointer",
-                        fontWeight: 500,
-                      }}
-                    >
-                      {user.is_active
-                        ? "Deaktivieren"
-                        : "Aktivieren"}
-                    </button>
+                    {isFullAdmin && user.role !== "admin" && (
+                      <button
+                        type="button"
+                        onClick={() => togglePasswordResetPermission(user)}
+                        style={{
+                          padding: "10px 14px",
+                          border: "1px solid #ccc",
+                          borderRadius: "8px",
+                          background: user.can_manage_password_resets ? "#fff4f4" : "#eef8ee",
+                          color: user.can_manage_password_resets ? "#8b1b1b" : "#176b17",
+                          cursor: "pointer",
+                          fontWeight: 600,
+                        }}
+                      >
+                        {user.can_manage_password_resets
+                          ? "Passwortfreigabe-Recht entziehen"
+                          : "Passwortfreigabe-Recht erteilen"}
+                      </button>
+                    )}
+
+                    {isFullAdmin && (
+                      <button
+                        type="button"
+                        onClick={() => toggleActive(user)}
+                        style={{
+                          padding: "10px 14px",
+                          border: "1px solid #ccc",
+                          borderRadius: "8px",
+                          background: "#fff",
+                          color: user.is_active ? "#b00000" : "#176b17",
+                          cursor: "pointer",
+                          fontWeight: 500,
+                        }}
+                      >
+                        {user.is_active ? "Deaktivieren" : "Aktivieren"}
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

@@ -9,6 +9,7 @@ type LoginUser = {
   username: string;
   display_name: string;
   role: string;
+  can_manage_password_resets?: boolean;
 };
 
 type Props = {
@@ -285,7 +286,7 @@ export default function LoginGate({ children }: Props) {
   }
 
   if (user && showUserAdmin) {
-    if (user.role !== "admin") {
+    if (user.role !== "admin" && !user.can_manage_password_resets) {
       localStorage.removeItem("theater.showUserAdmin");
       setShowUserAdmin(false);
     } else {
@@ -338,7 +339,7 @@ export default function LoginGate({ children }: Props) {
         }}
 
         onOpenUserAdmin={() => {
-          if (user.role !== "admin") {
+          if (user.role !== "admin" && !user.can_manage_password_resets) {
             return;
           }
 

@@ -1,5 +1,6 @@
 import TischsaalPlan from "./TischsaalPlan";
 import BookingEditPanel from "./BookingEditPanel";
+import InvoicePanel from "./components/InvoicePanel";
 import {
   useEffect,
   useMemo,
@@ -13,6 +14,12 @@ type Performance = {
   performance_date: string;
   start_time: string;
   hall_plan_type?: "hall_1" | "hall_2";
+  price_from?: number;
+  price_breakdown?: {
+    subtotal_gross?: number;
+  };
+  postal_shipping_gross?: number;
+  postal_shipping_vat_rate?: number;
 };
 
 type Booking = {
@@ -52,6 +59,13 @@ function formatDate(value: string) {
   const date = new Date(`${value}T00:00:00`);
 
   return date.toLocaleDateString("de-DE");
+}
+
+function performanceTicketPrice(performance?: Performance) {
+  const subtotal = Number(performance?.price_breakdown?.subtotal_gross);
+  if (Number.isFinite(subtotal) && subtotal >= 0) return subtotal;
+  const totalWithService = Number(performance?.price_from || 0);
+  return Math.round((totalWithService / 1.1) * 100) / 100;
 }
 
 function statusClass(status: string) {
@@ -118,10 +132,10 @@ export default function BookingsPage({
     useState("1");
 
   const [ticketPrice, setTicketPrice] =
-    useState("79.90");
+    useState("0.00");
 
   const [serviceFee, setServiceFee] =
-    useState("3.50");
+    useState("0.00");
 
   const [freeSeating, setFreeSeating] =
     useState(false);
@@ -153,6 +167,11 @@ export default function BookingsPage({
 
   const [editingBooking, setEditingBooking] =
     useState<Booking | null>(null);
+
+  const [invoicePanel, setInvoicePanel] = useState<{
+    view: "invoice" | "templates";
+    bookingId: number | null;
+  } | null>(null);
 
 
   useEffect(() => {
@@ -355,6 +374,19 @@ export default function BookingsPage({
         String(selectedPerformanceId),
     );
 
+  useEffect(() => {
+    if (!selectedPerformance) {
+      setTicketPrice("0.00");
+      setServiceFee("0.00");
+      return;
+    }
+
+    const frozenUnitPrice = performanceTicketPrice(selectedPerformance);
+    const count = Math.max(1, Number(ticketCount) || 1);
+    setTicketPrice(frozenUnitPrice.toFixed(2));
+    setServiceFee((Math.round(frozenUnitPrice * count * 0.1 * 100) / 100).toFixed(2));
+  }, [selectedPerformance, ticketCount]);
+
   const performanceMap = useMemo(() => {
     return new Map(
       performances.map((performance) => [
@@ -417,8 +449,8 @@ export default function BookingsPage({
     setPhone("");
     setSelectedPerformanceId("");
     setTicketCount("1");
-    setTicketPrice("79.90");
-    setServiceFee("3.50");
+    setTicketPrice("0.00");
+    setServiceFee("0.00");
     setFreeSeating(false);
     setNotes("");
   }
@@ -530,16 +562,38 @@ export default function BookingsPage({
             </p>
           </div>
 
-          <button
-            type="button"
-            className="bookings-primary-button"
-            onClick={() => {
-              setMessage("");
-              setShowNewPerson(true);
+          <div
+            style={{
+              display: "flex",
+              gap: "10px",
+              alignItems: "center",
             }}
           >
-            + Neue Person
-          </button>
+            <button
+              type="button"
+              className="bookings-secondary-button"
+              onClick={() => {
+                setMessage("");
+                setInvoicePanel({
+                  view: "templates",
+                  bookingId: null,
+                });
+              }}
+            >
+              Rechnungsvorlagen
+            </button>
+
+            <button
+              type="button"
+              className="bookings-primary-button"
+              onClick={() => {
+                setMessage("");
+                setShowNewPerson(true);
+              }}
+            >
+              + Neue Person
+            </button>
+          </div>
         </header>
 
         <section className="bookings-toolbar">
@@ -750,33 +804,27 @@ export default function BookingsPage({
                 </label>
 
                 <label>
-                  Preis / Ticket
+                  Preis je Ticket vor Service
                   <input
                     type="number"
                     min="0"
                     step="0.01"
                     value={ticketPrice}
-                    onChange={(event) =>
-                      setTicketPrice(
-                        event.target.value,
-                      )
-                    }
+                    readOnly
                   />
+                  <small>Wird aus der Veranstaltung übernommen und mit der Buchung fest gespeichert.</small>
                 </label>
 
                 <label>
-                  VVK + Versand / Service
+                  Servicepauschale
                   <input
                     type="number"
                     min="0"
                     step="0.01"
                     value={serviceFee}
-                    onChange={(event) =>
-                      setServiceFee(
-                        event.target.value,
-                      )
-                    }
+                    readOnly
                   />
+                  <small>10 % vom Ticketwert dieser Buchung; Versand wird erst in der Rechnung gewählt.</small>
                 </label>
 
                 <div className="booking-seat-choice-row">
@@ -1044,11 +1092,13 @@ export default function BookingsPage({
                       <button
                         type="button"
                         className="bookings-invoice-button"
-                        onClick={() =>
-                          setMessage(
-                            `Rechnung für ${booking.booking_number} wird als nächster Schritt verbunden.`,
-                          )
-                        }
+                        onClick={() => {
+                          setMessage("");
+                          setInvoicePanel({
+                            view: "invoice",
+                            bookingId: booking.id,
+                          });
+                        }}
                       >
                         Rechnung
                       </button>
@@ -1060,6 +1110,31 @@ export default function BookingsPage({
           )}
         </section>
       </div>
+
+      {invoicePanel && (
+        <InvoicePanel
+          bookings={bookings.map((booking) => ({
+            ...booking,
+            performanceId: booking.performance_id,
+          }))}
+          performances={performances.map(
+            (performance) => ({
+              id: performance.id,
+              date: performance.performance_date,
+              time: performance.start_time,
+              title: performance.title,
+              postal_shipping_gross: performance.postal_shipping_gross,
+              postal_shipping_vat_rate: performance.postal_shipping_vat_rate,
+            }),
+          )}
+          initialBookingId={invoicePanel.bookingId}
+          initialView={invoicePanel.view}
+          onClose={() => setInvoicePanel(null)}
+          onInvoiceCreated={(invoiceMessage) =>
+            setMessage(invoiceMessage)
+          }
+        />
+      )}
     </div>
   );
 }

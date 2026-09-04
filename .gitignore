@@ -1,6 +1,10 @@
 frontend/node_modules/
 frontend/dist/
+ticketshop/node_modules/
+ticketshop/dist/
 backend/__pycache__/
+backend/uploads/
 *.pyc
 .env*
+!.env*.example
 .DS_Store
