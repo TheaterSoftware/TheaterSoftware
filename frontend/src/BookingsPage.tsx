@@ -13,6 +13,7 @@ type Performance = {
   title: string;
   performance_date: string;
   start_time: string;
+  venue_name?: string;
   hall_plan_type?: "hall_1" | "hall_2";
   price_from?: number;
   price_breakdown?: {
@@ -40,6 +41,8 @@ ticket_count: number;
   ticket_price: number;
   service_fee: number;
   status: string;
+  delivery_method?: string;
+  online_paid?: boolean;
 };
 
 type Props = {
@@ -320,8 +323,10 @@ export default function BookingsPage({
     performances,
   ]);
 
-  async function loadData() {
-    setLoading(true);
+  async function loadData(silent = false) {
+    if (!silent) {
+      setLoading(true);
+    }
 
     try {
       const [
@@ -353,18 +358,55 @@ export default function BookingsPage({
       setBookings(bookingsData);
       setPerformances(performancesData);
     } catch (error) {
-      setMessage(
-        error instanceof Error
-          ? error.message
-          : "Daten konnten nicht geladen werden.",
-      );
+      if (!silent) {
+        setMessage(
+          error instanceof Error
+            ? error.message
+            : "Daten konnten nicht geladen werden.",
+        );
+      } else {
+        console.error(
+          "Buchungen konnten nicht automatisch aktualisiert werden:",
+          error,
+        );
+      }
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   }
 
   useEffect(() => {
     void loadData();
+
+    const refreshData = () => {
+      void loadData(true);
+    };
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") {
+        refreshData();
+      }
+    };
+
+    const intervalId = window.setInterval(
+      refreshData,
+      5000,
+    );
+    window.addEventListener("focus", refreshData);
+    document.addEventListener(
+      "visibilitychange",
+      refreshWhenVisible,
+    );
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", refreshData);
+      document.removeEventListener(
+        "visibilitychange",
+        refreshWhenVisible,
+      );
+    };
   }, []);
 
   const selectedPerformance =
@@ -384,7 +426,7 @@ export default function BookingsPage({
     const frozenUnitPrice = performanceTicketPrice(selectedPerformance);
     const count = Math.max(1, Number(ticketCount) || 1);
     setTicketPrice(frozenUnitPrice.toFixed(2));
-    setServiceFee((Math.round(frozenUnitPrice * count * 0.1 * 100) / 100).toFixed(2));
+    setServiceFee((Math.round(frozenUnitPrice * count * 0.03 * 100) / 100).toFixed(2));
   }, [selectedPerformance, ticketCount]);
 
   const performanceMap = useMemo(() => {
@@ -562,13 +604,7 @@ export default function BookingsPage({
             </p>
           </div>
 
-          <div
-            style={{
-              display: "flex",
-              gap: "10px",
-              alignItems: "center",
-            }}
-          >
+          <div className="bookings-page-actions">
             <button
               type="button"
               className="bookings-secondary-button"
@@ -803,7 +839,7 @@ export default function BookingsPage({
                   />
                 </label>
 
-                <label>
+                <label className="booking-form-wide">
                   Preis je Ticket vor Service
                   <input
                     type="number"
@@ -813,18 +849,6 @@ export default function BookingsPage({
                     readOnly
                   />
                   <small>Wird aus der Veranstaltung übernommen und mit der Buchung fest gespeichert.</small>
-                </label>
-
-                <label>
-                  Servicepauschale
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={serviceFee}
-                    readOnly
-                  />
-                  <small>10 % vom Ticketwert dieser Buchung; Versand wird erst in der Rechnung gewählt.</small>
                 </label>
 
                 <div className="booking-seat-choice-row">
@@ -990,6 +1014,12 @@ export default function BookingsPage({
                         {performance?.title ??
                           "Keine Show"}
                       </small>
+
+                      {booking.online_paid && (
+                        <small className="booking-source-online">
+                          Online bezahlt
+                        </small>
+                      )}
                     </div>
 
                     <div>
@@ -1123,6 +1153,7 @@ export default function BookingsPage({
               date: performance.performance_date,
               time: performance.start_time,
               title: performance.title,
+              venue_name: performance.venue_name,
               postal_shipping_gross: performance.postal_shipping_gross,
               postal_shipping_vat_rate: performance.postal_shipping_vat_rate,
             }),

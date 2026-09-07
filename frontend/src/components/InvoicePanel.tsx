@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import html2canvas from "html2canvas";
 import "./InvoicePanel.css";
 
 export type InvoiceBooking = {
@@ -22,6 +23,7 @@ export type InvoicePerformance = {
   date: string;
   time: string;
   title: string;
+  venue_name?: string;
   postal_shipping_gross?: number;
   postal_shipping_vat_rate?: number;
 };
@@ -33,6 +35,8 @@ type TemplateItem = {
   quantity?: number;
   unit_gross?: number;
   percentage?: number;
+  service_calculation?: "percentage" | "amount";
+  show_on_invoice?: boolean;
   append_event_details?: boolean;
 };
 
@@ -43,6 +47,7 @@ type TemplateData = {
   processor?: string;
   iban?: string;
   bank_name?: string;
+  venue_text?: string;
   payment_text?: string;
   reference_label?: string;
   thank_you_text?: string;
@@ -77,6 +82,8 @@ type InvoiceLine = {
   unit_gross: number;
   tax_rate: number;
   templateSource?: TemplateItem["source"] | "shipping";
+  servicePercentage?: number;
+  serviceCalculation?: "percentage" | "amount";
 };
 
 type StoredLine = Omit<InvoiceLine, "localId"> & {
@@ -98,6 +105,8 @@ type StoredInvoice = {
   net_amount: number;
   tax_amount: number;
   gross_amount: number;
+  voucher_amount?: number;
+  amount_due?: number;
   tax_breakdown: TaxGroup[];
   recipient_snapshot: Record<string, string>;
   template_snapshot: TemplateData;
@@ -126,6 +135,7 @@ type TemplateForm = {
   tax_number: string;
   iban: string;
   bank_name: string;
+  venue_text: string;
   payment_text: string;
   reference_label: string;
   thank_you_text: string;
@@ -173,14 +183,15 @@ const DEFAULT_FORM: TemplateForm = {
   description: "Grundlayout für Rechnungen dieser Veranstaltung.",
   performance_id: "",
   number_prefix: "DWH",
-  number_suffix: "10",
-  number_sequence_start: 134,
+  number_suffix: "",
+  number_sequence_start: 1,
   default_tax_rate: 7,
   sender_line: THEATER_MASTER.sender_line,
   company_name: THEATER_MASTER.company_name,
   tax_number: THEATER_MASTER.tax_number,
   iban: THEATER_MASTER.iban,
   bank_name: THEATER_MASTER.bank_name,
+  venue_text: "",
   payment_text: "Bitte überweisen Sie den Betrag direkt nach Erhalt der Rechnung auf unser Konto.",
   reference_label: "Verwendungszweck / Referenz Nr.",
   thank_you_text: "Vielen Dank und bis bald im Boulevardtheater!",
@@ -189,11 +200,23 @@ const DEFAULT_FORM: TemplateForm = {
   sequence_width: 3,
   items: [
     { description: "Eintrittskarte", source: "tickets", tax_rate: 7, append_event_details: true },
-    { description: "Servicepauschale", source: "service_percent", percentage: 10, tax_rate: 19 },
+    {
+      description: "Servicepauschale",
+      source: "service_percent",
+      percentage: 3,
+      service_calculation: "percentage",
+      show_on_invoice: true,
+      tax_rate: 19,
+    },
   ],
 };
 
 const LEGACY_TICKET_DESCRIPTION = "{{event_title}} am {{event_date}}";
+const LEGACY_VENUE_EXAMPLE = [
+  "Plopsaland Deutschland",
+  "Holiday-Park-Str. 1-5",
+  "67454 Haßloch",
+].join("\n");
 
 const newForm = (): TemplateForm => ({
   ...DEFAULT_FORM,
@@ -208,10 +231,166 @@ function roundMoney(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
+function invoiceEventDatePart(value?: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value || ""));
+  return match ? `${match[3]}${match[2]}` : "TTMM";
+}
+
+function invoiceNumberExample(
+  prefix: string,
+  performanceDate?: string,
+  sequenceWidth = 3,
+) {
+  const normalizedPrefix = String(prefix || "RE")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "") || "RE";
+  const width = Math.max(1, Math.min(Number(sequenceWidth || 3), 8));
+  return `${normalizedPrefix}-${invoiceEventDatePart(performanceDate)}-${String(1).padStart(width, "0")}`;
+}
+
+function normalizeServicePercentage(value: unknown) {
+  const percentage = Number(value);
+  if (!Number.isFinite(percentage)) return 3;
+  return Math.min(100, Math.max(0, percentage));
+}
+
+function normalizeServiceAmount(value: unknown) {
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return 0;
+  return roundMoney(Math.max(0, amount));
+}
+
+function normalizeServiceCalculation(value: unknown) {
+  return value === "amount" ? "amount" as const : "percentage" as const;
+}
+
 function formatDate(value?: string | null) {
   if (!value) return "—";
   const date = new Date(`${value}T00:00:00`);
   return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString("de-DE");
+}
+
+function combineBytes(chunks: Uint8Array[]) {
+  const result = new Uint8Array(chunks.reduce((total, chunk) => total + chunk.length, 0));
+  let offset = 0;
+  chunks.forEach((chunk) => {
+    result.set(chunk, offset);
+    offset += chunk.length;
+  });
+  return result;
+}
+
+function createA4Pdf(jpegDataUrl: string, imageWidth: number, imageHeight: number) {
+  const encodedImage = jpegDataUrl.split(",")[1];
+  if (!encodedImage) throw new Error("Die PDF-Grafik konnte nicht erstellt werden.");
+
+  const binaryImage = atob(encodedImage);
+  const imageBytes = Uint8Array.from(binaryImage, (character) => character.charCodeAt(0));
+  const encoder = new TextEncoder();
+  const pageWidth = 595.28;
+  const pageHeight = 841.89;
+  const content = `q\n${pageWidth} 0 0 ${pageHeight} 0 0 cm\n/Im0 Do\nQ\n`;
+  const contentBytes = encoder.encode(content);
+  const chunks: Uint8Array[] = [encoder.encode("%PDF-1.4\n% Generated by TheaterSoftware\n")];
+  const offsets = [0];
+  let byteLength = chunks[0].length;
+
+  const append = (chunk: Uint8Array) => {
+    chunks.push(chunk);
+    byteLength += chunk.length;
+  };
+  const appendText = (value: string) => append(encoder.encode(value));
+  const beginObject = (number: number) => {
+    offsets[number] = byteLength;
+    appendText(`${number} 0 obj\n`);
+  };
+
+  beginObject(1);
+  appendText("<< /Type /Catalog /Pages 2 0 R >>\nendobj\n");
+  beginObject(2);
+  appendText("<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n");
+  beginObject(3);
+  appendText(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /XObject << /Im0 5 0 R >> >> /Contents 4 0 R >>\nendobj\n`);
+  beginObject(4);
+  appendText(`<< /Length ${contentBytes.length} >>\nstream\n`);
+  append(contentBytes);
+  appendText("endstream\nendobj\n");
+  beginObject(5);
+  appendText(`<< /Type /XObject /Subtype /Image /Width ${imageWidth} /Height ${imageHeight} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${imageBytes.length} >>\nstream\n`);
+  append(imageBytes);
+  appendText("\nendstream\nendobj\n");
+
+  const crossReferenceOffset = byteLength;
+  appendText("xref\n0 6\n0000000000 65535 f \n");
+  for (let number = 1; number <= 5; number += 1) {
+    appendText(`${String(offsets[number]).padStart(10, "0")} 00000 n \n`);
+  }
+  appendText(`trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${crossReferenceOffset}\n%%EOF`);
+
+  const bytes = combineBytes(chunks);
+  return new Blob([bytes.buffer], { type: "application/pdf" });
+}
+
+async function downloadInvoicePopupAsPdf(popup: Window, fileName: string) {
+  const sourcePage = popup.document.querySelector<HTMLElement>(".page");
+  if (!sourcePage) throw new Error("Die Rechnungsvorschau wurde nicht gefunden.");
+
+  const page = sourcePage.cloneNode(true) as HTMLElement;
+  page.querySelector(".bar")?.remove();
+  const sourceWidth = Math.round(180 * 96 / 25.4);
+  page.style.width = `${sourceWidth}px`;
+  page.style.maxWidth = "none";
+  page.style.minHeight = "272mm";
+  page.style.margin = "0";
+  page.style.background = "#fff";
+  const measurement = popup.document.createElement("div");
+  measurement.style.cssText = `position:fixed;left:-10000px;top:0;width:${sourceWidth}px;background:#fff;pointer-events:none;`;
+  measurement.appendChild(page);
+  popup.document.body.appendChild(measurement);
+
+  try {
+    const sourceHeight = Math.ceil(Math.max(page.scrollHeight, page.getBoundingClientRect().height));
+    const renderedPage = await html2canvas(page, {
+      backgroundColor: "#ffffff",
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      width: sourceWidth,
+      height: sourceHeight,
+      windowWidth: sourceWidth,
+      windowHeight: sourceHeight,
+      scrollX: 0,
+      scrollY: 0,
+    });
+    const canvas = document.createElement("canvas");
+    canvas.width = 1240;
+    canvas.height = 1754;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("Die PDF-Zeichenfläche ist nicht verfügbar.");
+    context.fillStyle = "#fff";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    const marginX = Math.round(canvas.width * 15 / 210);
+    const marginY = Math.round(canvas.height * 12 / 297);
+    const scale = Math.min(
+      (canvas.width - 2 * marginX) / sourceWidth,
+      (canvas.height - 2 * marginY) / sourceHeight,
+    );
+    const width = sourceWidth * scale;
+    const height = sourceHeight * scale;
+    context.drawImage(renderedPage, (canvas.width - width) / 2, marginY, width, height);
+
+    const pdf = createA4Pdf(canvas.toDataURL("image/jpeg", 0.96), canvas.width, canvas.height);
+    const pdfUrl = URL.createObjectURL(pdf);
+    const link = document.createElement("a");
+    link.href = pdfUrl;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(pdfUrl), 1_000);
+  } finally {
+    measurement.remove();
+  }
 }
 
 function berlinToday() {
@@ -233,9 +412,48 @@ function calculateLine(line: InvoiceLine) {
 
 function keepServiceItemLast(items: TemplateItem[]) {
   return [
-    ...items.filter((item) => item.source !== "service_percent"),
-    ...items.filter((item) => item.source === "service_percent"),
+    ...items.filter((item) => !["service", "service_percent"].includes(item.source)),
+    ...items.filter((item) => ["service", "service_percent"].includes(item.source)),
   ];
+}
+
+function normalizeTemplateItems(items: TemplateItem[]) {
+  const normalized = items.map((storedItem) => storedItem.source === "service_percent" || storedItem.source === "service"
+    ? {
+        ...storedItem,
+        source: "service_percent" as const,
+        description: "Servicepauschale",
+        percentage: normalizeServicePercentage(storedItem.percentage),
+        unit_gross: normalizeServiceAmount(storedItem.unit_gross),
+        service_calculation: normalizeServiceCalculation(storedItem.service_calculation),
+        show_on_invoice: storedItem.show_on_invoice !== false,
+        tax_rate: 19,
+      }
+    : { ...storedItem });
+  const serviceIndex = normalized.findIndex((item) => item.source === "service_percent");
+  const legacyFixedIndex = normalized.findIndex((item) => (
+    item.source === "fixed"
+    && /^Servicepauschale$/i.test(item.description.trim())
+  ));
+  if (serviceIndex >= 0 && legacyFixedIndex >= 0) {
+    const serviceItem = normalized[serviceIndex];
+    const legacyItem = normalized[legacyFixedIndex];
+    if (
+      normalizeServiceCalculation(serviceItem.service_calculation) === "percentage"
+      && normalizeServicePercentage(serviceItem.percentage) <= 0
+    ) {
+      normalized[serviceIndex] = {
+        ...serviceItem,
+        service_calculation: "amount",
+        unit_gross: normalizeServiceAmount(
+          Number(legacyItem.quantity ?? 1) * Number(legacyItem.unit_gross ?? 0),
+        ),
+        show_on_invoice: true,
+      };
+    }
+    normalized.splice(legacyFixedIndex, 1);
+  }
+  return keepServiceItemLast(normalized);
 }
 
 function refreshFixedServiceAmount(lines: InvoiceLine[]) {
@@ -243,28 +461,56 @@ function refreshFixedServiceAmount(lines: InvoiceLine[]) {
     .filter((line) => ![
       "service_percent",
       "service",
-      "shipping",
     ].includes(line.templateSource || ""))
     .reduce((sum, line) => sum + calculateLine(line).gross, 0);
-  return lines.map((line) => line.templateSource === "service_percent"
-    ? { ...line, quantity: 1, unit_gross: roundMoney(serviceBaseGross * 10 / 100), tax_rate: 19 }
-    : line);
+  return lines.map((line) => {
+    if (!["service", "service_percent"].includes(line.templateSource || "")) return line;
+    const percentage = normalizeServicePercentage(line.servicePercentage);
+    if (line.serviceCalculation === "amount") {
+      const unitGross = roundMoney(Math.max(0, Number(line.unit_gross) || 0));
+      return {
+        ...line,
+        description: "Servicepauschale",
+        quantity: 1,
+        unit_gross: unitGross,
+        tax_rate: 19,
+        servicePercentage: serviceBaseGross > 0
+          ? Math.round((unitGross / serviceBaseGross) * 10000) / 100
+          : percentage,
+        serviceCalculation: "amount" as const,
+        templateSource: "service_percent" as const,
+      };
+    }
+    return {
+      ...line,
+      description: "Servicepauschale",
+      quantity: 1,
+      unit_gross: roundMoney(serviceBaseGross * percentage / 100),
+      tax_rate: 19,
+      servicePercentage: percentage,
+      serviceCalculation: "percentage" as const,
+      templateSource: "service_percent" as const,
+    };
+  });
 }
 
 function insertBeforeServiceLine(lines: InvoiceLine[], newLine: InvoiceLine) {
   const result = [...lines];
-  const serviceIndex = result.findIndex((line) => line.templateSource === "service_percent");
+  const serviceIndex = result.findIndex((line) => ["service", "service_percent"].includes(line.templateSource || ""));
   if (serviceIndex < 0) result.push(newLine);
   else result.splice(serviceIndex, 0, newLine);
   return result;
 }
 
+function isServiceLine(line: Pick<InvoiceLine, "description" | "templateSource">) {
+  return ["service", "service_percent"].includes(line.templateSource || "")
+    || /^(Servicepauschale|Servicekosten(?:\s*\(\s*\d+(?:[.,]\d+)?\s*%\s*\))?)/i.test(line.description.trim());
+}
+
 function orderInvoiceLines(lines: InvoiceLine[]) {
   return [...lines].sort((first, second) => {
-    const firstIsService = first.templateSource === "service_percent"
-      || /^(Servicepauschale|Servicekosten\s*\(\s*10\s*%\s*\))/i.test(first.description.trim());
-    const secondIsService = second.templateSource === "service_percent"
-      || /^(Servicepauschale|Servicekosten\s*\(\s*10\s*%\s*\))/i.test(second.description.trim());
+    const firstIsService = isServiceLine(first);
+    const secondIsService = isServiceLine(second);
     if (firstIsService !== secondIsService) return firstIsService ? 1 : -1;
     return calculateLine(second).gross - calculateLine(first).gross;
   });
@@ -335,6 +581,15 @@ function escapeHtml(value: unknown) {
     .replaceAll("'", "&#039;");
 }
 
+function normalizeVenueText(value: unknown) {
+  const normalized = String(value || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .join("\n")
+    .trim();
+  return normalized === LEGACY_VENUE_EXAMPLE ? "" : normalized;
+}
+
 function templateToForm(template: InvoiceTemplate): TemplateForm {
   const data = template.template_data || {};
   return {
@@ -343,30 +598,28 @@ function templateToForm(template: InvoiceTemplate): TemplateForm {
     description: template.description || "",
     performance_id: template.performance_id ?? "",
     number_prefix: template.number_prefix || "RE",
-    number_suffix: template.number_suffix || "",
-    number_sequence_start: template.number_sequence_start || 1,
+    number_suffix: "",
+    number_sequence_start: 1,
     default_tax_rate: template.default_tax_rate,
     sender_line: THEATER_MASTER.sender_line,
     company_name: THEATER_MASTER.company_name,
     tax_number: THEATER_MASTER.tax_number,
     iban: THEATER_MASTER.iban,
     bank_name: THEATER_MASTER.bank_name,
+    venue_text: normalizeVenueText(data.venue_text),
     payment_text: String(data.payment_text || ""),
     reference_label: String(data.reference_label || "Verwendungszweck / Referenz Nr."),
     thank_you_text: String(data.thank_you_text || ""),
     exchange_text: EXCHANGE_NOTICE,
     footer_lines: THEATER_MASTER.footer_lines.join("\n"),
-    sequence_width: Number(data.sequence_width || 3),
+    sequence_width: 3,
     items: Array.isArray(data.items) && data.items.length
-      ? keepServiceItemLast(data.items.map((storedItem) => {
-        const item = storedItem.source === "service_percent"
-          ? { ...storedItem, description: "Servicepauschale", percentage: 10, tax_rate: 19 }
-          : { ...storedItem };
+      ? normalizeTemplateItems(data.items).map((item) => {
         if (item.source === "tickets" && item.description.trim() === LEGACY_TICKET_DESCRIPTION) {
           return { ...item, description: "Eintrittskarte", append_event_details: true };
         }
         return item;
-      }))
+      })
       : DEFAULT_FORM.items.map((item) => ({ ...item })),
   };
 }
@@ -377,8 +630,8 @@ function formPayload(form: TemplateForm) {
     description: form.description,
     performance_id: form.performance_id === "" ? null : form.performance_id,
     number_prefix: form.number_prefix,
-    number_suffix: form.number_suffix,
-    number_sequence_start: Number(form.number_sequence_start),
+    number_suffix: "",
+    number_sequence_start: 1,
     default_tax_rate: Number(form.default_tax_rate),
     template_data: {
       sender_line: THEATER_MASTER.sender_line,
@@ -386,15 +639,14 @@ function formPayload(form: TemplateForm) {
       tax_number: THEATER_MASTER.tax_number,
       iban: THEATER_MASTER.iban,
       bank_name: THEATER_MASTER.bank_name,
+      venue_text: form.venue_text,
       payment_text: form.payment_text,
       reference_label: form.reference_label,
       thank_you_text: form.thank_you_text,
       exchange_text: EXCHANGE_NOTICE,
       footer_lines: [...THEATER_MASTER.footer_lines],
-      sequence_width: Number(form.sequence_width),
-      items: keepServiceItemLast(form.items).map((item) => item.source === "service_percent"
-        ? { ...item, description: "Servicepauschale", percentage: 10, tax_rate: 19 }
-        : item),
+      sequence_width: 3,
+      items: normalizeTemplateItems(form.items),
     },
   };
 }
@@ -421,8 +673,10 @@ export default function InvoicePanel({
   const [processor, setProcessor] = useState(automaticProcessor);
   const [notes, setNotes] = useState("");
   const [postShipping, setPostShipping] = useState(false);
+  const [voucherAmount, setVoucherAmount] = useState(0);
   const [lines, setLines] = useState<InvoiceLine[]>([]);
   const [created, setCreated] = useState<StoredInvoice | null>(null);
+  const [nextInvoiceNumber, setNextInvoiceNumber] = useState("");
   const [form, setForm] = useState<TemplateForm>(newForm());
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
@@ -484,12 +738,7 @@ export default function InvoicePanel({
   function applyTemplate(selected: InvoiceTemplate, selectedBooking: InvoiceBooking) {
     const selectedPerformance = performances.find((item) => item.id === selectedBooking.performanceId) ?? null;
     const result: InvoiceLine[] = [];
-    const ticketTemplateItem = (selected.template_data.items || []).find((item) => item.source === "tickets");
-    const ticketUnitGross = ticketTemplateItem?.unit_gross === undefined
-      ? Number(selectedBooking.ticket_price || 0)
-      : Number(ticketTemplateItem.unit_gross || 0);
-    const ticketGrossForService = Number(selectedBooking.ticket_count || 0) * ticketUnitGross;
-    (selected.template_data.items || []).forEach((item, index) => {
+    normalizeTemplateItems(selected.template_data.items || []).forEach((item, index) => {
       let quantity = Number(item.quantity ?? 1);
       let unitGross = Number(item.unit_gross ?? 0);
       if (item.source === "tickets") {
@@ -498,8 +747,11 @@ export default function InvoicePanel({
           ? Number(selectedBooking.ticket_price || 0)
           : Number(item.unit_gross || 0);
       } else if (item.source === "service_percent") {
+        if (item.show_on_invoice === false) return;
         quantity = 1;
-        unitGross = roundMoney(ticketGrossForService * 10 / 100);
+        unitGross = normalizeServiceCalculation(item.service_calculation) === "amount"
+          ? normalizeServiceAmount(item.unit_gross)
+          : 0;
       } else if (item.source === "service") {
         unitGross = Number(selectedBooking.service_fee || 0);
         if (unitGross <= 0) return;
@@ -511,8 +763,14 @@ export default function InvoicePanel({
           : resolveTemplateItemDescription(item, selectedBooking, selectedPerformance),
         quantity,
         unit_gross: unitGross,
-        tax_rate: Number(item.tax_rate ?? selected.default_tax_rate),
+        tax_rate: item.source === "service_percent" ? 19 : Number(item.tax_rate ?? selected.default_tax_rate),
         templateSource: item.source,
+        servicePercentage: item.source === "service_percent"
+          ? normalizeServicePercentage(item.percentage)
+          : undefined,
+        serviceCalculation: item.source === "service_percent"
+          ? normalizeServiceCalculation(item.service_calculation)
+          : undefined,
       });
     });
     if (!result.length) {
@@ -543,7 +801,9 @@ export default function InvoicePanel({
     setError("");
     setMessage("");
     setCreated(null);
+    setNextInvoiceNumber("");
     setPostShipping(false);
+    setVoucherAmount(0);
     setInvoiceDate(berlinToday());
     setProcessor(automaticProcessor);
     Promise.all([
@@ -561,6 +821,7 @@ export default function InvoicePanel({
         setCreated(existing);
         setInvoiceDate(existing.invoice_date);
         setProcessor(String(existingData.processor || automaticProcessor));
+        setVoucherAmount(Number(existing.voucher_amount || 0));
         setLines(existing.items.map((item, index) => ({
           localId: `stored-${index}`,
           description: item.description,
@@ -583,9 +844,69 @@ export default function InvoicePanel({
     return () => { cancelled = true; };
   }, [bookingId, tab, automaticProcessor]);
 
+  useEffect(() => {
+    if (tab !== "invoice" || created || !bookingId || !templateId) {
+      setNextInvoiceNumber("");
+      return;
+    }
+
+    let cancelled = false;
+    setNextInvoiceNumber("");
+    const params = new URLSearchParams({
+      booking_id: String(bookingId),
+      template_id: String(templateId),
+    });
+
+    fetch(`/api/invoices/next-number?${params}`, {
+      headers: authHeaders(),
+      cache: "no-store",
+    })
+      .then(async (response) => {
+        const data = await response.json().catch(() => null);
+        if (!response.ok) {
+          throw new Error(data?.detail || "Nächste Rechnungsnummer konnte nicht geladen werden.");
+        }
+        return data;
+      })
+      .then((data) => {
+        if (!cancelled) setNextInvoiceNumber(String(data?.invoice_number || ""));
+      })
+      .catch(() => {
+        if (!cancelled) setNextInvoiceNumber("");
+      });
+
+    return () => { cancelled = true; };
+  }, [bookingId, templateId, tab, created?.id]);
+
   function updateLine(id: string, patch: Partial<InvoiceLine>) {
     setLines((current) => refreshFixedServiceAmount(
       current.map((line) => line.localId === id ? { ...line, ...patch } : line),
+    ));
+  }
+
+  function updateServicePercentage(id: string, percentage: number) {
+    setLines((current) => refreshFixedServiceAmount(
+      current.map((line) => line.localId === id
+        ? {
+            ...line,
+            servicePercentage: normalizeServicePercentage(percentage),
+            serviceCalculation: "percentage" as const,
+          }
+        : line),
+    ));
+  }
+
+  function updateServiceAmount(id: string, amount: number) {
+    setLines((current) => refreshFixedServiceAmount(
+      current.map((line) => line.localId === id
+        ? {
+            ...line,
+            quantity: 1,
+            unit_gross: roundMoney(Math.max(0, Number(amount) || 0)),
+            tax_rate: 19,
+            serviceCalculation: "amount" as const,
+          }
+        : line),
     ));
   }
 
@@ -603,19 +924,21 @@ export default function InvoicePanel({
   function togglePostShipping(enabled: boolean) {
     setPostShipping(enabled);
     if (enabled) {
-      setLines((current) => insertBeforeServiceLine(
-        current.filter((line) => !line.localId.startsWith("shipping-")),
-        {
-          localId: `shipping-${Date.now()}`,
-          description: "Versandpauschale",
-          quantity: 1,
-          unit_gross: Number(performance?.postal_shipping_gross || 0),
-          tax_rate: Number(performance?.postal_shipping_vat_rate ?? 19),
-          templateSource: "shipping",
-        },
-      ));
+      setLines((current) => refreshFixedServiceAmount(insertBeforeServiceLine(
+          current.filter((line) => !line.localId.startsWith("shipping-")),
+          {
+            localId: `shipping-${Date.now()}`,
+            description: "Versandpauschale",
+            quantity: 1,
+            unit_gross: Number(performance?.postal_shipping_gross || 0),
+            tax_rate: Number(performance?.postal_shipping_vat_rate ?? 19),
+            templateSource: "shipping",
+          },
+        )));
     } else {
-      setLines((current) => current.filter((line) => !line.localId.startsWith("shipping-")));
+      setLines((current) => refreshFixedServiceAmount(
+        current.filter((line) => !line.localId.startsWith("shipping-")),
+      ));
     }
   }
 
@@ -628,6 +951,7 @@ export default function InvoicePanel({
       setError("Bitte alle Rechnungspositionen vollständig und korrekt ausfüllen.");
       return;
     }
+    const serviceLine = lines.find((line) => isServiceLine(line));
     setSaving(true);
     setError("");
     try {
@@ -640,6 +964,13 @@ export default function InvoicePanel({
           invoice_date: invoiceDate,
           processor,
           notes,
+          voucher_amount: roundMoney(Math.max(0, Number(voucherAmount) || 0)),
+          service_percentage: isAdmin && serviceLine
+            ? normalizeServicePercentage(serviceLine.servicePercentage)
+            : undefined,
+          service_gross_override: isAdmin && serviceLine?.serviceCalculation === "amount"
+            ? roundMoney(serviceLine.unit_gross)
+            : undefined,
           items: orderedLines.map(({ description, quantity, unit_gross, tax_rate }) => ({ description, quantity, unit_gross, tax_rate })),
         }),
       });
@@ -755,7 +1086,14 @@ export default function InvoicePanel({
     updateTemplateItem(
       index,
       source === "service_percent"
-        ? { source, percentage: 10, tax_rate: 19 }
+        ? {
+            source,
+            percentage: 3,
+            unit_gross: 0,
+            service_calculation: "percentage",
+            show_on_invoice: true,
+            tax_rate: 19,
+          }
         : source === "tickets"
           ? { source, append_event_details: true }
         : { source },
@@ -782,16 +1120,36 @@ export default function InvoicePanel({
     : {
         ...(template?.template_data || {}),
         ...THEATER_MASTER,
+        venue_text: normalizeVenueText(
+          template?.template_data?.venue_text || performance?.venue_name
+        ),
         footer_lines: [...THEATER_MASTER.footer_lines],
         exchange_text: EXCHANGE_NOTICE,
         processor,
       };
-  const year = String(new Date(performance?.date || invoiceDate).getFullYear()).slice(-2);
-  const numberPreview = created?.invoice_number || (template
-    ? `${template.number_prefix}-${year}-${String(template.number_sequence_start).padStart(Number(template.template_data.sequence_width || 3), "0")}${template.number_suffix ? `-${template.number_suffix}` : ""}`
+  const numberPreview = created?.invoice_number || nextInvoiceNumber || (template
+    ? invoiceNumberExample(
+        template.number_prefix,
+        performance?.date,
+        Number(template.template_data.sequence_width || 3),
+      )
     : "—");
+  const formPerformance = performances.find(
+    (item) => item.id === form.performance_id,
+  );
+  const formNumberExample = invoiceNumberExample(
+    form.number_prefix,
+    formPerformance?.date,
+    form.sequence_width,
+  );
   const taxGroups = created?.tax_breakdown || totals.groups;
   const grossTotal = created?.gross_amount ?? totals.gross;
+  const voucherApplied = created
+    ? Number(created.voucher_amount || 0)
+    : roundMoney(Math.min(Math.max(0, Number(voucherAmount) || 0), grossTotal));
+  const amountDue = created?.amount_due === undefined
+    ? roundMoney(Math.max(0, grossTotal - voucherApplied))
+    : Number(created.amount_due);
 
   function printInvoice() {
     if (!booking) return;
@@ -806,11 +1164,41 @@ export default function InvoicePanel({
       setError("Das Druckfenster wurde blockiert. Bitte Pop-ups erlauben.");
       return;
     }
-    const rows = printableLines.map((line) => `<tr><td>${escapeHtml(line.description)}</td><td>${escapeHtml(line.quantity.toLocaleString("de-DE"))}</td><td>${escapeHtml(money(line.unit_gross))}</td><td>${escapeHtml(line.tax_rate)} %</td><td>${escapeHtml(money(line.gross_amount))}</td></tr>`).join("");
+    const rows = printableLines.map((line) => `<tr><td>${escapeHtml(line.description)}</td><td>${escapeHtml(line.quantity.toLocaleString("de-DE"))}</td><td>${escapeHtml(money(line.unit_gross))}</td><td>${isServiceLine(line) ? "" : `${escapeHtml(line.tax_rate)} %`}</td><td>${escapeHtml(money(line.gross_amount))}</td></tr>`).join("");
     const taxes = taxGroups.map((group) => `<tr><td>Enthaltene MwSt. ${escapeHtml(group.tax_rate)} %</td><td>${escapeHtml(money(group.net_amount))} netto</td><td>${escapeHtml(money(group.tax_amount))}</td></tr>`).join("");
+    const paymentTotal = voucherApplied > 0
+      ? `<tr><td colspan="2">Rechnungsbetrag</td><td>${escapeHtml(money(grossTotal))}</td></tr><tr class="voucher"><td colspan="2">Geschenkgutschein</td><td>− ${escapeHtml(money(voucherApplied))}</td></tr><tr class="grand"><td colspan="2">Noch zu zahlen</td><td>${escapeHtml(money(amountDue))}</td></tr>`
+      : `<tr class="grand"><td colspan="2">Gesamtbetrag</td><td>${escapeHtml(money(grossTotal))}</td></tr>`;
+    const venueText = String(data.venue_text || "").trim();
+    const venueBlock = venueText
+      ? `<div class="venue"><strong>VERANSTALTUNGSORT</strong><span>${escapeHtml(venueText).replaceAll("\r\n", "\n").replaceAll("\n", "<br>")}</span></div>`
+      : "";
     const footer = (Array.isArray(data.footer_lines) ? data.footer_lines : []).map((line) => `<div>${escapeHtml(line)}</div>`).join("");
-    popup.document.write(`<!doctype html><html lang="de"><head><meta charset="utf-8"><title>Rechnung ${escapeHtml(numberPreview)}</title><style>@page{size:A4;margin:12mm 15mm}*{box-sizing:border-box}body{font-family:Arial;color:#111;font-size:13px;margin:0}.page{max-width:790px;min-height:1060px;margin:auto;position:relative;padding-bottom:100px}.logo{width:330px;max-height:72px;object-fit:contain;object-position:left;margin-bottom:14px}.sender{font-size:10px;text-decoration:underline;margin-bottom:18px}.head{display:grid;grid-template-columns:1fr 280px;gap:40px;min-height:170px}.address{font-size:15px;line-height:1.5}.meta{display:grid;grid-template-columns:112px 1fr;align-content:start;gap:5px 8px;font-size:11px}.title{font-size:23px;font-weight:700;margin:20px 0}table{width:100%;border-collapse:collapse}th,td{padding:8px 6px;border-bottom:1px solid #ddd;text-align:left}th:nth-child(n+2),td:nth-child(n+2){text-align:right}.sum{width:400px;margin:14px 0 0 auto}.sum td{border:0}.grand{font-size:17px;font-weight:700;border-top:2px solid #111}.payment{margin-top:30px;line-height:1.5}.bank{display:grid;grid-template-columns:160px 1fr;gap:5px 15px;margin:15px 0}.thanks{margin-top:25px;font-size:15px}.exchange{margin-top:24px;font-weight:700;font-style:italic}.footer{position:absolute;bottom:0;left:0;right:0;border-top:1px solid #aaa;padding-top:9px;text-align:center;font-size:10px;line-height:1.45}.bar{text-align:right}.bar button{padding:10px 18px;background:#111;color:#fff;border:0;border-radius:7px}@media print{.bar{display:none}}</style></head><body><div class="page"><div class="bar"><button onclick="window.print()">Drucken / als PDF speichern</button></div><img class="logo" src="/invoice-logo.png"><div class="sender">${escapeHtml(data.sender_line)}</div><div class="head"><div class="address">${escapeHtml(recipient.first_name)} ${escapeHtml(recipient.last_name)}<br>${escapeHtml(recipient.street)}<br>${escapeHtml(recipient.postal_code)} ${escapeHtml(recipient.city)}</div><div class="meta"><strong>Rechnungsdatum</strong><span>${escapeHtml(formatDate(created?.invoice_date || invoiceDate))}</span><strong>Bearbeiter</strong><span>${escapeHtml(data.processor)}</span><strong>Steuernummer</strong><span>${escapeHtml(data.tax_number)}</span></div></div><div class="title">Rechnung Nr. ${escapeHtml(numberPreview)}</div><table><thead><tr><th>Bezeichnung</th><th>Menge</th><th>Einzelpreis</th><th>MwSt.</th><th>Gesamt</th></tr></thead><tbody>${rows}</tbody></table><table class="sum">${taxes}<tr class="grand"><td colspan="2">Gesamtbetrag</td><td>${escapeHtml(money(grossTotal))}</td></tr></table><div class="payment">${escapeHtml(data.payment_text)}</div><div class="bank"><strong>Kontoinhaber</strong><span>${escapeHtml(data.company_name)}</span><strong>IBAN</strong><span>${escapeHtml(data.iban)}</span><strong>Bank</strong><span>${escapeHtml(data.bank_name)}</span><strong>${escapeHtml(data.reference_label)}</strong><span>${escapeHtml(created?.reference_number || numberPreview)}</span></div><div class="thanks">${escapeHtml(data.thank_you_text)}</div><div class="exchange">${escapeHtml(data.exchange_text)}</div><div class="footer">${footer}</div></div></body></html>`);
+    popup.document.write(`<!doctype html><html lang="de"><head><meta charset="utf-8"><title>Rechnung ${escapeHtml(numberPreview)}</title><style>@page{size:A4;margin:12mm 15mm}*{box-sizing:border-box}body{font-family:Arial;color:#111;font-size:13px;margin:0}.page{max-width:790px;min-height:1060px;margin:auto;position:relative;padding-bottom:100px}.logo{width:330px;max-height:72px;object-fit:contain;object-position:left;margin-bottom:14px}.sender{font-size:10px;text-decoration:underline;margin-bottom:18px}.head{display:grid;grid-template-columns:1fr 280px;gap:40px;min-height:170px}.address{font-size:15px;line-height:1.5}.meta{display:grid;grid-template-columns:112px 1fr;align-content:start;gap:5px 8px;font-size:11px}.title{font-size:23px;font-weight:700;margin:20px 0}.venue{margin:0 0 18px;line-height:1.45}.venue strong{display:block;margin-bottom:3px}.venue span{white-space:normal}table{width:100%;border-collapse:collapse}th,td{padding:8px 6px;border-bottom:1px solid #ddd;text-align:left}th:nth-child(n+2),td:nth-child(n+2){text-align:right}.sum{width:400px;margin:14px 0 0 auto}.sum td{border:0}.voucher td{font-weight:700}.grand{font-size:17px;font-weight:700;border-top:2px solid #111}.payment{margin-top:30px;line-height:1.5}.bank{display:grid;grid-template-columns:160px 1fr;gap:5px 15px;margin:15px 0}.thanks{margin-top:25px;font-size:15px}.exchange{margin-top:24px;font-weight:700;font-style:italic}.footer{position:absolute;bottom:0;left:0;right:0;border-top:1px solid #aaa;padding-top:9px;text-align:center;font-size:10px;line-height:1.45}.bar{text-align:right}.bar button{padding:10px 18px;background:#111;color:#fff;border:0;border-radius:7px;cursor:pointer}.bar button:disabled{cursor:wait;opacity:.7}@media print{.bar{display:none}}</style></head><body><div class="page"><div class="bar"><button type="button">PDF direkt herunterladen</button></div><img class="logo" src="/invoice-logo.png"><div class="sender">${escapeHtml(data.sender_line)}</div><div class="head"><div class="address">${escapeHtml(recipient.first_name)} ${escapeHtml(recipient.last_name)}<br>${escapeHtml(recipient.street)}<br>${escapeHtml(recipient.postal_code)} ${escapeHtml(recipient.city)}</div><div class="meta"><strong>Rechnungsdatum</strong><span>${escapeHtml(formatDate(created?.invoice_date || invoiceDate))}</span><strong>Bearbeiter</strong><span>${escapeHtml(data.processor)}</span><strong>Steuernummer</strong><span>${escapeHtml(data.tax_number)}</span></div></div><div class="title">Rechnung Nr. ${escapeHtml(numberPreview)}</div>${venueBlock}<table><thead><tr><th>Bezeichnung</th><th>Menge</th><th>Einzelpreis</th><th>MwSt.</th><th>Gesamt</th></tr></thead><tbody>${rows}</tbody></table><table class="sum">${taxes}${paymentTotal}</table><div class="payment">${escapeHtml(data.payment_text)}</div><div class="bank"><strong>Kontoinhaber</strong><span>${escapeHtml(data.company_name)}</span><strong>IBAN</strong><span>${escapeHtml(data.iban)}</span><strong>Bank</strong><span>${escapeHtml(data.bank_name)}</span><strong>${escapeHtml(data.reference_label)}</strong><span>${escapeHtml(created?.reference_number || numberPreview)}</span></div><div class="thanks">${escapeHtml(data.thank_you_text)}</div><div class="exchange">${escapeHtml(data.exchange_text)}</div><div class="footer">${footer}</div></div></body></html>`);
+    const printLayoutFix = popup.document.createElement("style");
+    printLayoutFix.textContent = "@media print{.page{min-height:272mm!important;break-after:avoid-page;page-break-after:avoid}}";
+    popup.document.head.appendChild(printLayoutFix);
     popup.document.close();
+    const pdfButton = popup.document.querySelector<HTMLButtonElement>(".bar button");
+    pdfButton?.addEventListener("click", () => {
+      const safeNumber = numberPreview.replace(/[^a-z0-9_-]+/gi, "-");
+      pdfButton.disabled = true;
+      pdfButton.textContent = "PDF wird erstellt …";
+      void downloadInvoicePopupAsPdf(popup, `Rechnung-${safeNumber}.pdf`)
+        .then(() => {
+          pdfButton.textContent = "PDF wurde heruntergeladen";
+          window.setTimeout(() => {
+            if (!popup.closed) pdfButton.textContent = "PDF erneut herunterladen";
+          }, 1_500);
+        })
+        .catch((caught) => {
+          pdfButton.textContent = "PDF konnte nicht erstellt werden";
+          setError(caught instanceof Error ? caught.message : "PDF konnte nicht erstellt werden.");
+        })
+        .finally(() => {
+          pdfButton.disabled = false;
+        });
+    });
   }
 
   return <div className="invoice-v2-overlay" role="dialog" aria-modal="true">
@@ -841,12 +1229,30 @@ export default function InvoicePanel({
             <label>Bearbeiter<input disabled={Boolean(created) || !isAdmin} value={created ? String(templateData.processor || "—") : processor} onChange={(event) => setProcessor(event.target.value)} /><small>{isAdmin ? "Als Admin kannst du den automatisch ermittelten Namen ändern." : "Automatisch aus der angemeldeten Person übernommen."}</small></label>
           </div>
           <label className="invoice-v2-shipping-choice"><span><input type="checkbox" disabled={Boolean(created) || !booking} checked={created ? created.items.some((item) => /^(Versandpauschale|Ticketversand per Post|Postversand)/i.test(item.description)) : postShipping} onChange={(event) => togglePostShipping(event.target.checked)} /> Versandpauschale</span><small>{performance ? `${money(Number(performance.postal_shipping_gross || 0))} brutto · ${Number(performance.postal_shipping_vat_rate ?? 19)} % MwSt. · aus der Veranstaltung übernommen` : "Zuerst eine Buchung auswählen."}</small></label>
+          <div className="invoice-v2-grid">
+            <label>Geschenkgutschein verrechnen<input type="number" min="0" step="0.01" inputMode="decimal" disabled={Boolean(created) || !booking} value={created ? voucherApplied : voucherAmount} onChange={(event) => setVoucherAmount(Math.max(0, Number(event.target.value) || 0))} /><small>Wird nach Steuern vom Rechnungsbetrag abgezogen; höchstens bis 0,00 € Restbetrag.</small></label>
+          </div>
 
           <SectionTitle number="3" title="Rechnungspositionen" extra={<button disabled={Boolean(created)} onClick={addLine}>+ Sonstige Kosten</button>} />
           <div className="invoice-v2-lines">{lines.map((line, index) => {
             const sum = calculateLine(line);
-            const serviceLocked = line.templateSource === "service_percent";
-            return <div className="invoice-v2-line" key={line.localId}><b>{index + 1}</b><label className="wide">Bezeichnung<input disabled={Boolean(created)} value={line.description} onChange={(event) => updateLine(line.localId, { description: event.target.value })} /></label><label>Menge<input disabled={Boolean(created) || serviceLocked} type="number" min="1" step="1" inputMode="numeric" value={line.quantity} onChange={(event) => updateLine(line.localId, { quantity: Math.max(1, Math.round(Number(event.target.value) || 1)) })} /></label><label>Brutto je Stück<input disabled={Boolean(created) || serviceLocked} type="number" min="0" step="0.01" value={line.unit_gross} onChange={(event) => updateLine(line.localId, { unit_gross: Number(event.target.value) })} /></label><label>MwSt.<select disabled={Boolean(created) || serviceLocked} value={line.tax_rate} onChange={(event) => updateLine(line.localId, { tax_rate: Number(event.target.value) })}>{TAX_RATES.map((rate) => <option key={rate} value={rate}>{rate} %</option>)}</select></label><div className="invoice-v2-line-total"><span>Brutto</span><strong>{money(sum.gross)}</strong><small>{money(sum.net)} netto</small></div>{!created && !serviceLocked && <button className="invoice-v2-remove" onClick={() => setLines((current) => refreshFixedServiceAmount(current.filter((item) => item.localId !== line.localId)))}>×</button>}</div>;
+            const serviceLocked = isServiceLine(line);
+            return <div className="invoice-v2-line" key={line.localId}>
+              <b>{index + 1}</b>
+              <label className="wide">Bezeichnung<input disabled={Boolean(created)} value={line.description} onChange={(event) => updateLine(line.localId, { description: event.target.value })} /></label>
+              {serviceLocked ? <>
+                {isAdmin ? <>
+                  <label>Service in %<input disabled={Boolean(created)} type="number" min="0" max="100" step="0.01" value={normalizeServicePercentage(line.servicePercentage)} onChange={(event) => updateServicePercentage(line.localId, Number(event.target.value))} /></label>
+                  <label>Servicebetrag brutto<input disabled={Boolean(created)} type="number" min="0" step="0.01" value={line.unit_gross} onChange={(event) => updateServiceAmount(line.localId, Number(event.target.value))} /></label>
+                </> : <label>Berechnung<input readOnly value="Automatisch" /></label>}
+              </> : <>
+                <label>Menge<input disabled={Boolean(created)} type="number" min="1" step="1" inputMode="numeric" value={line.quantity} onChange={(event) => updateLine(line.localId, { quantity: Math.max(1, Math.round(Number(event.target.value) || 1)) })} /></label>
+                <label>Brutto je Stück<input disabled={Boolean(created)} type="number" min="0" step="0.01" value={line.unit_gross} onChange={(event) => updateLine(line.localId, { unit_gross: Number(event.target.value) })} /></label>
+                <label>MwSt.<select disabled={Boolean(created)} value={line.tax_rate} onChange={(event) => updateLine(line.localId, { tax_rate: Number(event.target.value) })}>{TAX_RATES.map((rate) => <option key={rate} value={rate}>{rate} %</option>)}</select></label>
+              </>}
+              <div className="invoice-v2-line-total"><span>Brutto</span><strong>{money(sum.gross)}</strong><small>{money(sum.net)} netto</small></div>
+              {!created && !serviceLocked && <button className="invoice-v2-remove" onClick={() => setLines((current) => refreshFixedServiceAmount(current.filter((item) => item.localId !== line.localId)))}>×</button>}
+            </div>;
           })}</div>
           <label>Interne Notiz<textarea rows={2} disabled={Boolean(created)} value={created?.notes || notes} onChange={(event) => setNotes(event.target.value)} /></label>
           <div className="invoice-v2-actions"><button className="secondary" disabled={!booking} onClick={printInvoice}>Vorschau / Drucken</button>{!created && <button className="primary" disabled={saving || loading || !booking || !templateId} onClick={createInvoice}>{saving ? "Wird gespeichert …" : "Rechnung endgültig erstellen"}</button>}</div>
@@ -857,31 +1263,52 @@ export default function InvoicePanel({
           <div className="invoice-v2-sender">{String(templateData.sender_line || "")}</div>
           <div className="invoice-v2-paper-head"><div>{booking ? <>{booking.first_name} {booking.last_name}<br />{booking.street}<br />{booking.postal_code} {booking.city}</> : "Empfänger auswählen"}</div><dl><dt>Rechnungsdatum</dt><dd>{formatDate(created?.invoice_date || invoiceDate)}</dd><dt>Bearbeiter</dt><dd>{String(templateData.processor || "—")}</dd><dt>Steuernummer</dt><dd>{String(templateData.tax_number || "—")}</dd></dl></div>
           <h1>Rechnung Nr. {numberPreview}</h1>
-          {!created && <div className="invoice-v2-number-note">Vorschau – die wirklich nächste freie Nummer wird erst beim Speichern vergeben.</div>}
-          <table><thead><tr><th>Bezeichnung</th><th>Menge</th><th>MwSt.</th><th>Gesamt</th></tr></thead><tbody>{orderedLines.map((line) => <tr key={line.localId}><td>{line.description}</td><td>{line.quantity.toLocaleString("de-DE")}</td><td>{line.tax_rate} %</td><td>{money(calculateLine(line).gross)}</td></tr>)}</tbody></table>
-          <div className="invoice-v2-totals">{taxGroups.map((group) => <div key={group.tax_rate}><span>Enthaltene MwSt. {group.tax_rate} %</span><span>{money(group.tax_amount)}</span></div>)}<div className="grand"><strong>Gesamtbetrag</strong><strong>{money(grossTotal)}</strong></div></div>
+          {!created && <div className="invoice-v2-number-note">Vorschau der aktuell nächsten freien Nummer – endgültig reserviert wird sie beim Speichern.</div>}
+          {String(templateData.venue_text || "").trim() && <div style={{ margin: "0 0 18px", lineHeight: 1.45 }}><strong style={{ display: "block", marginBottom: 3 }}>VERANSTALTUNGSORT</strong><span style={{ whiteSpace: "pre-line" }}>{String(templateData.venue_text || "").trim()}</span></div>}
+          <table><thead><tr><th>Bezeichnung</th><th>Menge</th><th>MwSt.</th><th>Gesamt</th></tr></thead><tbody>{orderedLines.map((line) => <tr key={line.localId}><td>{line.description}</td><td>{line.quantity.toLocaleString("de-DE")}</td><td>{isServiceLine(line) ? "" : `${line.tax_rate} %`}</td><td>{money(calculateLine(line).gross)}</td></tr>)}</tbody></table>
+          <div className="invoice-v2-totals">{taxGroups.map((group) => <div key={group.tax_rate}><span>Enthaltene MwSt. {group.tax_rate} %</span><span>{money(group.tax_amount)}</span></div>)}{voucherApplied > 0 ? <><div><span>Rechnungsbetrag</span><span>{money(grossTotal)}</span></div><div><strong>Geschenkgutschein</strong><strong>− {money(voucherApplied)}</strong></div><div className="grand"><strong>Noch zu zahlen</strong><strong>{money(amountDue)}</strong></div></> : <div className="grand"><strong>Gesamtbetrag</strong><strong>{money(grossTotal)}</strong></div>}</div>
           <p>{String(templateData.payment_text || "")}</p>
           <div className="invoice-v2-bank"><strong>Kontoinhaber</strong><span>{String(templateData.company_name || "")}</span><strong>IBAN</strong><span>{String(templateData.iban || "")}</span><strong>Bank</strong><span>{String(templateData.bank_name || "")}</span><strong>{String(templateData.reference_label || "Referenz")}</strong><span>{created?.reference_number || numberPreview}</span></div>
           <p className="invoice-v2-thanks">{String(templateData.thank_you_text || "")}</p><p className="invoice-v2-exchange">{String(templateData.exchange_text || "")}</p>
           <footer>{(Array.isArray(templateData.footer_lines) ? templateData.footer_lines : []).map((line, index) => <div key={index}>{line}</div>)}</footer>
         </div></section>
       </div> : <div className="invoice-v2-template-workspace">
-        <aside className="invoice-v2-template-list"><button className="invoice-v2-new" onClick={() => setForm(newForm())}>+ Neue Vorlage</button>{loading && <p>Lade Vorlagen …</p>}{templates.map((item) => <button key={item.id} className={form.id === item.id ? "selected" : ""} onClick={() => setForm(templateToForm(item))}><strong>{item.name}</strong><span>{item.performance_id ? performances.find((performanceItem) => performanceItem.id === item.performance_id)?.title || "Event" : "Alle Events"}</span><small>{item.number_prefix}-JJ-…{item.number_suffix ? `-${item.number_suffix}` : ""} · {item.is_active ? "Aktiv" : "Inaktiv"}</small></button>)}</aside>
+        <aside className="invoice-v2-template-list"><button className="invoice-v2-new" onClick={() => setForm(newForm())}>+ Neue Vorlage</button>{loading && <p>Lade Vorlagen …</p>}{templates.map((item) => { const itemPerformance = performances.find((performanceItem) => performanceItem.id === item.performance_id); return <button key={item.id} className={form.id === item.id ? "selected" : ""} onClick={() => setForm(templateToForm(item))}><strong>{item.name}</strong><span>{itemPerformance?.title || (item.performance_id ? "Event" : "Alle Events")}</span><small>{invoiceNumberExample(item.number_prefix, itemPerformance?.date, Number(item.template_data.sequence_width || 3))} · {item.is_active ? "Aktiv" : "Inaktiv"}</small></button>; })}</aside>
         <section className="invoice-v2-template-editor">
           <div className="invoice-v2-editor-title"><div><h3>{form.id ? "Vorlage bearbeiten" : "Neue Vorlage"}</h3><p>Die verwendete Vorlage wird bei jeder fertigen Rechnung unveränderlich mitgespeichert.</p></div>{form.id && <div className="invoice-v2-editor-buttons"><button onClick={() => { const selected = templates.find((item) => item.id === form.id); if (selected) void duplicateTemplate(selected); }}>Vorlage duplizieren</button>{isAdmin && <button className="danger" onClick={() => { const selected = templates.find((item) => item.id === form.id); if (selected) { setDeleteTarget(selected); setDeleteConfirmation(""); } }}>Vorlage löschen</button>}</div>}</div>
-          <div className="invoice-v2-form-grid"><label>Vorlagenname<input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label><label>Event-Zuordnung<select value={form.performance_id} onChange={(event) => setForm({ ...form, performance_id: event.target.value ? Number(event.target.value) : "" })}><option value="">Allgemein – alle Events</option>{performances.map((item) => <option key={item.id} value={item.id}>{formatDate(item.date)} · {item.title}</option>)}</select></label><label>Standard-MwSt. für neue Positionen<select value={form.default_tax_rate} onChange={(event) => setForm({ ...form, default_tax_rate: Number(event.target.value) })}>{TAX_RATES.map((rate) => <option key={rate} value={rate}>{rate} %</option>)}</select></label><label>Stellen der laufenden Nummer<select value={form.sequence_width} onChange={(event) => setForm({ ...form, sequence_width: Number(event.target.value) })}><option value={3}>3 Stellen (134)</option><option value={4}>4 Stellen (0134)</option><option value={5}>5 Stellen (00134)</option></select></label><label className="full">Interne Beschreibung<input value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} /></label></div>
-          <h4>Rechnungsnummer</h4><div className="invoice-v2-number-grid"><label>Kürzel<input value={form.number_prefix} onChange={(event) => setForm({ ...form, number_prefix: event.target.value })} /></label><span>– JJ –</span><label>Mindestnummer<input type="number" min="1" value={form.number_sequence_start} onChange={(event) => setForm({ ...form, number_sequence_start: Number(event.target.value) })} /></label><label>Endung<input value={form.number_suffix} onChange={(event) => setForm({ ...form, number_suffix: event.target.value })} /></label></div><div className="invoice-v2-hint">Die laufende Nummer wird global und transaktionssicher geführt. Sie kann niemals zurückspringen oder doppelt vergeben werden.</div>
+          <div className="invoice-v2-form-grid"><label>Vorlagenname<input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label><label>Event-Zuordnung<select value={form.performance_id} onChange={(event) => {
+  const performanceId = event.target.value ? Number(event.target.value) : "";
+  const selectedPerformance = performances.find((item) => item.id === performanceId);
+
+  setForm((current) => ({
+    ...current,
+    performance_id: performanceId,
+    venue_text: selectedPerformance?.venue_name?.trim()
+      ? selectedPerformance.venue_name
+      : current.venue_text,
+  }));
+}}><option value="">Allgemein – alle Events</option>{performances.map((item) => <option key={item.id} value={item.id}>{formatDate(item.date)} · {item.title}</option>)}</select></label><label>Standard-MwSt. für neue Positionen<select value={form.default_tax_rate} onChange={(event) => setForm({ ...form, default_tax_rate: Number(event.target.value) })}>{TAX_RATES.map((rate) => <option key={rate} value={rate}>{rate} %</option>)}</select></label><label>Laufende Nummer<input readOnly value="3 Stellen (001)" /></label><label className="full">Interne Beschreibung<input value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} /></label></div>
+          <h4>Rechnungsnummer</h4><div className="invoice-v2-number-grid"><label>Event-Kürzel<input value={form.number_prefix} onChange={(event) => setForm({ ...form, number_prefix: event.target.value })} /></label><span>– TTMM –</span><label>Beispiel<input readOnly value={formNumberExample} /></label></div><div className="invoice-v2-hint">Format: Event-Kürzel – Veranstaltungstag und -monat – laufende Nummer. Jede Vorstellung beginnt bei 001; die Nummer wird transaktionssicher vergeben.</div>
+          <h4>Veranstaltungsort auf der Rechnung</h4><div className="invoice-v2-hint">Optional. Hier kannst du den Namen und die vollständige Adresse frei und mehrzeilig eingeben. Bleibt das Feld leer, wird kein Veranstaltungsort gedruckt.</div><div className="invoice-v2-form-grid"><label className="full">Veranstaltungsort und Adresse<textarea rows={4} placeholder={"Boulevardtheater Deidesheim Stadthalle\nBahnhofstr. 11\n67146 Deidesheim"} value={form.venue_text} onChange={(event) => setForm({ ...form, venue_text: event.target.value })} /></label></div>
           <h4>Absender und Zahlung</h4><div className="invoice-v2-hint">Absender, Steuernummer, IBAN, Bank und Fußzeile sind feste Theaterdaten. Der Bearbeiter wird bei jeder Rechnung automatisch aus der angemeldeten Person übernommen.</div><div className="invoice-v2-form-grid invoice-v2-master-data"><label className="full">Absenderzeile<input readOnly value={form.sender_line} /></label><label>Firmen-/Kontoinhaber<input readOnly value={form.company_name} /></label><label>Steuernummer<input readOnly value={form.tax_number} /></label><label>IBAN<input readOnly value={form.iban} /></label><label>Bank<input readOnly value={form.bank_name} /></label><label>Referenz-Bezeichnung<input value={form.reference_label} onChange={(event) => setForm({ ...form, reference_label: event.target.value })} /></label><label className="full">Zahlungshinweis<textarea rows={2} value={form.payment_text} onChange={(event) => setForm({ ...form, payment_text: event.target.value })} /></label></div>
           <h4>Standardpositionen und Steuer</h4>
           <div className="invoice-v2-template-items">
             {form.items.map((item, index) => <div className="invoice-v2-template-item" key={index}>
               <b>{index + 1}</b>
-              <label>Quelle<select disabled={item.source === "service_percent"} value={item.source} onChange={(event) => changeTemplateItemSource(index, event.target.value as TemplateItem["source"])}><option value="tickets">Ticketdaten</option><option value="service_percent" disabled={item.source !== "service_percent"}>Servicepauschale</option><option value="service">Hinterlegte Servicepauschale</option><option value="fixed">Fester/Sonstiger Posten</option></select></label>
+              <label>Quelle<select disabled={item.source === "service_percent"} value={item.source} onChange={(event) => changeTemplateItemSource(index, event.target.value as TemplateItem["source"])}><option value="tickets">Ticketdaten</option><option value="service_percent" disabled={item.source !== "service_percent"}>Servicepauschale</option><option value="fixed">Fester/Sonstiger Posten</option></select></label>
               <label className="wide">Bezeichnung auf der Rechnung<input value={item.description} onChange={(event) => updateTemplateItem(index, { description: event.target.value })} />{item.source === "tickets" && <span className="invoice-v2-auto-event"><input type="checkbox" checked={Boolean(item.append_event_details)} onChange={(event) => updateTemplateItem(index, { append_event_details: event.target.checked })} /> Eventname und Datum automatisch ergänzen</span>}</label>
-              <label>MwSt.<select disabled={item.source === "service_percent"} value={item.source === "service_percent" ? 19 : item.tax_rate} onChange={(event) => updateTemplateItem(index, { tax_rate: Number(event.target.value) })}>{TAX_RATES.map((rate) => <option key={rate} value={rate}>{rate} %</option>)}</select></label>
+              {item.source !== "service_percent" && <label>MwSt.<select value={item.tax_rate} onChange={(event) => updateTemplateItem(index, { tax_rate: Number(event.target.value) })}>{TAX_RATES.map((rate) => <option key={rate} value={rate}>{rate} %</option>)}</select></label>}
               <div className={`invoice-v2-template-values${item.source === "fixed" ? " split" : ""}`}>
                 {item.source === "tickets" && <label>Ticketpreis brutto<input type="number" min="0" step="0.01" placeholder="Preis aus Buchung" value={item.unit_gross ?? ""} onChange={(event) => updateTemplateItem(index, { unit_gross: event.target.value === "" ? undefined : Number(event.target.value) })} /></label>}
-                {item.source === "service_percent" && <label>Fester Anteil<input readOnly value="10 %" /></label>}
+                {item.source === "service_percent" && (isAdmin
+                  ? <>
+                    <label>Berechnung<select value={normalizeServiceCalculation(item.service_calculation)} onChange={(event) => updateTemplateItem(index, { service_calculation: event.target.value as "percentage" | "amount" })}><option value="percentage">Prozentual</option><option value="amount">Fester Bruttobetrag</option></select></label>
+                    {normalizeServiceCalculation(item.service_calculation) === "amount"
+                      ? <label>Service brutto in €<input type="number" min="0" step="0.01" value={normalizeServiceAmount(item.unit_gross)} onChange={(event) => updateTemplateItem(index, { unit_gross: normalizeServiceAmount(event.target.value) })} /></label>
+                      : <label>Service in %<input type="number" min="0" max="100" step="0.01" value={normalizeServicePercentage(item.percentage)} onChange={(event) => updateTemplateItem(index, { percentage: normalizeServicePercentage(event.target.value) })} /></label>}
+                    <span className="invoice-v2-auto-event"><input type="checkbox" checked={item.show_on_invoice !== false} onChange={(event) => updateTemplateItem(index, { show_on_invoice: event.target.checked })} /> Auf Rechnung berechnen und anzeigen</span>
+                  </>
+                  : <label>Berechnung<input readOnly value={item.show_on_invoice === false ? "Nicht berechnen" : "Automatisch"} /></label>)}
                 {item.source === "service" && <label>Betrag<input readOnly value="Aus Buchung" /></label>}
                 {item.source === "fixed" && <><label>Menge<input type="number" min="1" step="1" inputMode="numeric" value={item.quantity ?? 1} onChange={(event) => updateTemplateItem(index, { quantity: Math.max(1, Math.round(Number(event.target.value) || 1)) })} /></label><label>Brutto<input type="number" min="0" step="0.01" value={item.unit_gross ?? 0} onChange={(event) => updateTemplateItem(index, { unit_gross: Number(event.target.value) })} /></label></>}
               </div>
@@ -889,7 +1316,7 @@ export default function InvoicePanel({
             </div>)}
             <button onClick={() => setForm((current) => { const items = [...current.items]; const serviceIndex = items.findIndex((item) => item.source === "service_percent"); const nextItem: TemplateItem = { description: "Sonstige Kosten", source: "fixed", tax_rate: current.default_tax_rate, quantity: 1, unit_gross: 0 }; if (serviceIndex < 0) items.push(nextItem); else items.splice(serviceIndex, 0, nextItem); return { ...current, items }; })}>+ Standardposition ergänzen</button>
           </div>
-          <div className="invoice-v2-hint">Bei „Ticketdaten“ kann ein eigener Ticketpreis gespeichert werden; bleibt das Feld leer, wird der Preis aus der Buchung verwendet. Eventname und Veranstaltungsdatum werden auf Wunsch automatisch ergänzt. Die Servicepauschale beträgt 10 % der Summe aller abrechenbaren Positionen; Versandpauschale und Servicepauschale zählen nicht erneut zur Berechnungsgrundlage. Auf der Rechnung stehen die teuersten Positionen oben und die Servicepauschale bleibt ganz unten.</div>
+          <div className="invoice-v2-hint">Bei „Ticketdaten“ kann ein eigener Ticketpreis gespeichert werden; bleibt das Feld leer, wird der Preis aus der Buchung verwendet. Eventname und Veranstaltungsdatum werden auf Wunsch automatisch ergänzt. Administratoren können die Servicepauschale pro Vorlage prozentual oder als festen Bruttobetrag mit 19 % MwSt. festlegen. Wird „Auf Rechnung berechnen und anzeigen“ ausgeschaltet, entfällt die Pauschale vollständig. Auf der Rechnung stehen die teuersten Positionen oben und die Servicepauschale bleibt ganz unten.</div>
           <h4>Abschluss und Fußzeile</h4><div className="invoice-v2-form-grid"><label className="full">Dankestext<input value={form.thank_you_text} onChange={(event) => setForm({ ...form, thank_you_text: event.target.value })} /></label><label className="full">Fester Umtauschhinweis<input readOnly value={form.exchange_text} /></label><label className="full">Feste Fußzeilen<textarea readOnly rows={4} value={form.footer_lines} /></label></div>
           <div className="invoice-v2-actions"><button className="primary" disabled={saving} onClick={saveTemplate}>{saving ? "Speichert …" : "Vorlage speichern"}</button></div>
         </section>
