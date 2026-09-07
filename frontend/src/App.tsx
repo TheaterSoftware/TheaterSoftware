@@ -29,6 +29,9 @@ type Booking = {
   status: string;
   localOnly: boolean;
   performanceId: number;
+  performance_id?: number;
+  delivery_method?: string;
+  online_paid?: boolean;
 };
 
 type Assignment = {
@@ -61,6 +64,28 @@ function performanceTicketPrice(performance?: Performance | null) {
   const subtotal = Number(performance?.price_breakdown?.subtotal_gross);
   if (Number.isFinite(subtotal) && subtotal >= 0) return subtotal;
   return Math.round((Number(performance?.price_from || 0) / 1.1) * 100) / 100;
+}
+
+function normalizeBooking(item: Record<string, unknown>): Booking {
+  const performanceId = Number(
+    item.performance_id ?? item.performanceId ?? 0
+  );
+
+  return {
+    ...(item as unknown as Booking),
+    performanceId,
+    performance_id: performanceId,
+    localOnly: false,
+    delivery_method: String(item.delivery_method ?? "email"),
+    online_paid: Boolean(item.online_paid),
+  };
+}
+
+function normalizeAssignment(item: Record<string, unknown>): Assignment {
+  return {
+    ...(item as unknown as Assignment),
+    localOnly: false,
+  };
 }
 
 function createSeats(): Seat[] {
@@ -290,7 +315,7 @@ const [performanceDate, setPerformanceDate] =
     const unitPrice = performanceTicketPrice(selectedPerformance);
     const count = Math.max(1, Number(ticketCount) || 1);
     setTicketPrice(unitPrice.toFixed(2));
-    setServiceFee((Math.round(unitPrice * count * 0.1 * 100) / 100).toFixed(2));
+    setServiceFee((Math.round(unitPrice * count * 0.03 * 100) / 100).toFixed(2));
   }, [showBookingForm, selectedPerformance, ticketCount]);
 
   const bookings =
@@ -385,17 +410,23 @@ const [performanceDate, setPerformanceDate] =
           );
         }
 
+        const normalizedBookings =
+          bookingsData.map(
+            (booking) =>
+              normalizeBooking(booking)
+          );
+
         const loadedBookingsByPerformance =
           Object.fromEntries(
             loadedPerformances.map(
               (performance) => [
                 performance.id,
-                bookingsData.filter(
+                normalizedBookings.filter(
                   (booking) =>
                     Number(
-                      booking.performance_id
+                      booking.performanceId
                     ) === performance.id
-                ) as Booking[],
+                ),
               ]
             )
           );
@@ -432,7 +463,12 @@ const [performanceDate, setPerformanceDate] =
           );
 
         const assignmentsData =
-          assignmentsResponses.flat();
+          assignmentsResponses
+            .flat()
+            .map(
+              (assignment) =>
+                normalizeAssignment(assignment)
+            );
 
         const loadedAssignmentsByPerformance =
           Object.fromEntries(
@@ -444,7 +480,7 @@ const [performanceDate, setPerformanceDate] =
                     Number(
                       assignment.performance_id
                     ) === performance.id
-                ) as Assignment[],
+                ),
               ]
             )
           );
@@ -498,6 +534,124 @@ const [performanceDate, setPerformanceDate] =
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (
+      !loggedInUser ||
+      !performancesLoaded ||
+      selectedPerformanceId <= 0
+    ) {
+      return;
+    }
+
+    let cancelled = false;
+    let refreshing = false;
+
+    async function refreshSelectedPerformance() {
+      if (refreshing) {
+        return;
+      }
+
+      refreshing = true;
+
+      try {
+        const [bookingsResponse, assignmentsResponse] =
+          await Promise.all([
+            fetch(
+              `/api/bookings?performance_id=${selectedPerformanceId}`,
+              { cache: "no-store" }
+            ),
+            fetch(
+              `/api/assignments?performance_id=${selectedPerformanceId}`,
+              { cache: "no-store" }
+            ),
+          ]);
+
+        const bookingsData =
+          await bookingsResponse.json().catch(() => null);
+        const assignmentsData =
+          await assignmentsResponse.json().catch(() => null);
+
+        if (!bookingsResponse.ok || !Array.isArray(bookingsData)) {
+          throw new Error(
+            `Buchungen konnten nicht aktualisiert werden: HTTP ${bookingsResponse.status}`
+          );
+        }
+
+        if (!assignmentsResponse.ok || !Array.isArray(assignmentsData)) {
+          throw new Error(
+            `Sitzplätze konnten nicht aktualisiert werden: HTTP ${assignmentsResponse.status}`
+          );
+        }
+
+        if (cancelled) {
+          return;
+        }
+
+        setBookingsByPerformance(
+          (current) => ({
+            ...current,
+            [selectedPerformanceId]:
+              bookingsData.map(
+                (booking) =>
+                  normalizeBooking(booking)
+              ),
+          })
+        );
+
+        setAssignmentsByPerformance(
+          (current) => ({
+            ...current,
+            [selectedPerformanceId]:
+              assignmentsData.map(
+                (assignment) =>
+                  normalizeAssignment(assignment)
+              ),
+          })
+        );
+      } catch (error) {
+        if (!cancelled) {
+          console.error(
+            "Sitzplanverwaltung konnte nicht automatisch aktualisiert werden:",
+            error
+          );
+        }
+      } finally {
+        refreshing = false;
+      }
+    }
+
+    const refreshNow = () => {
+      void refreshSelectedPerformance();
+    };
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") {
+        refreshNow();
+      }
+    };
+
+    refreshNow();
+    const intervalId = window.setInterval(refreshNow, 5000);
+    window.addEventListener("focus", refreshNow);
+    document.addEventListener(
+      "visibilitychange",
+      refreshWhenVisible
+    );
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", refreshNow);
+      document.removeEventListener(
+        "visibilitychange",
+        refreshWhenVisible
+      );
+    };
+  }, [
+    loggedInUser,
+    performancesLoaded,
+    selectedPerformanceId,
+  ]);
 
   const filteredBookings = useMemo(() => {
     const search =
@@ -2934,7 +3088,7 @@ const [performanceDate, setPerformanceDate] =
                     const nextValue = event.target.value;
                     const nextCount = Math.max(1, Number(nextValue) || 1);
                     setEditTicketCount(nextValue);
-                    setEditServiceFee((Math.round(Number(editTicketPrice) * nextCount * 0.1 * 100) / 100).toFixed(2));
+                    setEditServiceFee((Math.round(Number(editTicketPrice) * nextCount * 0.03 * 100) / 100).toFixed(2));
                   }}
                 />
               </label>
@@ -3042,6 +3196,10 @@ const [performanceDate, setPerformanceDate] =
             </span>
           </div>
 
+          <p className="booking-sync-hint">
+            Bezahlte Online-Buchungen erscheinen automatisch.
+          </p>
+
           <div className="booking-search">
 
             <input
@@ -3127,6 +3285,12 @@ const [performanceDate, setPerformanceDate] =
                     <span>
                       {booking.booking_number}
                     </span>
+
+                    {booking.online_paid && (
+                      <small className="online-paid-badge">
+                        Online bezahlt
+                      </small>
+                    )}
 
                     <span>
                       {booking.ticket_count}{" "}

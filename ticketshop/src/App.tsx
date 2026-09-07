@@ -268,11 +268,13 @@ function PriceBreakdown({ event }: { event: PublicEvent }) {
           <div key={`${item.category}-${item.name}-${index}`}>
             <span>
               {item.name}
-              <small>
-                {item.vat_rate} % MwSt. · {item.provider_type === "external"
-                  ? `extern${item.provider_name ? `: ${item.provider_name}` : ""}`
-                  : "intern"}
-              </small>
+              {item.category !== "ticket" && (
+                <small>
+                  {item.vat_rate} % MwSt. · {item.provider_type === "external"
+                    ? `extern${item.provider_name ? `: ${item.provider_name}` : ""}`
+                    : "intern"}
+                </small>
+              )}
             </span>
             <strong>{formatMoney(item.gross)}</strong>
           </div>
@@ -281,7 +283,7 @@ function PriceBreakdown({ event }: { event: PublicEvent }) {
         <>
           {prices.ticket && (
             <div>
-              <span>Ticketpreis <small>{prices.ticket.vat_rate} % MwSt.</small></span>
+              <span>Eintrittskarte</span>
               <strong>{formatMoney(prices.ticket.gross)}</strong>
             </div>
           )}
@@ -295,7 +297,7 @@ function PriceBreakdown({ event }: { event: PublicEvent }) {
       )}
       {prices.service.gross > 0 && (
         <div>
-          <span>Servicepauschale <small>{prices.service_fee_percent ?? 10} % vom Vorpreis · {prices.service.vat_rate} % MwSt.</small></span>
+          <span>Servicepauschale</span>
           <strong>{formatMoney(prices.service.gross)}</strong>
         </div>
       )}

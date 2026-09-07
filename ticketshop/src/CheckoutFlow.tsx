@@ -28,6 +28,11 @@ type CheckoutEvent = {
   price_from: number;
   postal_shipping_gross: number;
   postal_shipping_vat_rate: number;
+  price_breakdown?: {
+    subtotal_gross?: number;
+    ticket?: { gross?: number };
+    additional?: { gross?: number };
+  };
 };
 
 type Customer = {
@@ -284,8 +289,20 @@ export default function CheckoutFlow({ event, apiBase }: Props) {
       ? Number(event.postal_shipping_gross || 0)
       : 0;
 
+  const configuredTicketUnitGross = event.price_breakdown?.subtotal_gross
+    ?? (
+      Number(event.price_breakdown?.ticket?.gross || 0)
+      + Number(event.price_breakdown?.additional?.gross || 0)
+    );
+  const ticketUnitGross = Number(
+    configuredTicketUnitGross || event.price_from / 1.03,
+  );
+  const ticketsGross = Math.round(ticketUnitGross * quantity * 100) / 100;
+  const serviceGross =
+    Math.round((ticketsGross + shippingGross) * 0.03 * 100) / 100;
+
   const estimatedTotal =
-    Math.round((event.price_from * quantity + shippingGross) * 100) / 100;
+    Math.round((ticketsGross + shippingGross + serviceGross) * 100) / 100;
 
   function toggleSeat(seat: PublicSeat) {
     setMessage("");
@@ -811,7 +828,7 @@ export default function CheckoutFlow({ event, apiBase }: Props) {
                 {item.name}
                 {item.kind !== "service" && (
                   <small>
-                    {item.quantity} × {formatMoney(item.gross_each)} · {item.vat_rate} % MwSt.
+                    {item.quantity} × {formatMoney(item.gross_each)}
                   </small>
                 )}
               </span>
@@ -979,8 +996,9 @@ export default function CheckoutFlow({ event, apiBase }: Props) {
 
         <OrderEstimate
           quantity={quantity}
-          ticketsGross={event.price_from * quantity}
+          ticketsGross={ticketsGross}
           shippingGross={shippingGross}
+          serviceGross={serviceGross}
           totalGross={estimatedTotal}
         />
         {message && <div className="checkout-message error">{message}</div>}
@@ -1073,9 +1091,10 @@ export default function CheckoutFlow({ event, apiBase }: Props) {
 
       <OrderEstimate
         quantity={quantity}
-        ticketsGross={event.price_from * quantity}
+        ticketsGross={ticketsGross}
         shippingGross={0}
-        totalGross={event.price_from * quantity}
+        serviceGross={serviceGross}
+        totalGross={estimatedTotal}
       />
       {message && <div className="checkout-message error">{message}</div>}
       <button
@@ -1142,11 +1161,13 @@ function OrderEstimate({
   quantity,
   ticketsGross,
   shippingGross,
+  serviceGross,
   totalGross,
 }: {
   quantity: number;
   ticketsGross: number;
   shippingGross: number;
+  serviceGross: number;
   totalGross: number;
 }) {
   return (
@@ -1159,6 +1180,12 @@ function OrderEstimate({
         <div>
           <span>Versandpauschale</span>
           <strong>{formatMoney(shippingGross)}</strong>
+        </div>
+      )}
+      {serviceGross > 0 && (
+        <div>
+          <span>Servicepauschale</span>
+          <strong>{formatMoney(serviceGross)}</strong>
         </div>
       )}
       <div className="estimate-total">

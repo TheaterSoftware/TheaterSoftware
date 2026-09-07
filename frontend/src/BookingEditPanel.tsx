@@ -389,7 +389,7 @@ export default function BookingEditPanel({
                       const nextPerformance = performances.find((item) => item.id === nextPerformanceId);
                       const nextTicketPrice = performanceTicketPrice(nextPerformance);
                       setTicketPrice(nextTicketPrice);
-                      setServiceFee(Math.round(nextTicketPrice * ticketCount * 0.1 * 100) / 100);
+                      setServiceFee(Math.round(nextTicketPrice * ticketCount * 0.03 * 100) / 100);
                     }
 
                     if (
@@ -436,7 +436,7 @@ export default function BookingEditPanel({
                   onChange={(event) => {
                     const nextCount = Math.max(1, Math.round(Number(event.target.value) || 1));
                     setTicketCount(nextCount);
-                    setServiceFee(Math.round(ticketPrice * nextCount * 0.1 * 100) / 100);
+                    setServiceFee(Math.round(ticketPrice * nextCount * 0.03 * 100) / 100);
                   }}
                 />
               </label>

@@ -47,6 +47,13 @@ type Performance = {
   postal_shipping_vat_rate?: number;
 };
 
+type InvoiceTemplateOption = {
+  id: number;
+  name: string;
+  performance_id: number | null;
+  is_active: boolean;
+};
+
 type Props = { onBack: () => void };
 
 const TICKETSHOP_BASE =
@@ -164,6 +171,7 @@ function OptionalPriceRow(props: OptionalPriceRowProps) {
 
 export default function Performances({ onBack }: Props) {
   const [performances, setPerformances] = useState<Performance[]>([]);
+  const [invoiceTemplates, setInvoiceTemplates] = useState<InvoiceTemplateOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -180,6 +188,7 @@ export default function Performances({ onBack }: Props) {
   const [description, setDescription] = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [venueName, setVenueName] = useState("");
+  const [invoiceTemplateId, setInvoiceTemplateId] = useState<number | "">("");
   const [doorsTime, setDoorsTime] = useState("");
   const [salesStartAt, setSalesStartAt] = useState("");
   const [salesEndAt, setSalesEndAt] = useState("");
@@ -188,7 +197,6 @@ export default function Performances({ onBack }: Props) {
   const [capacity, setCapacity] = useState("");
   const [ticketPriceGross, setTicketPriceGross] = useState("0");
   const [ticketVatRate, setTicketVatRate] = useState(7);
-  const [serviceVatRate, setServiceVatRate] = useState(19);
   const [postalShippingGross, setPostalShippingGross] = useState("0");
   const [postalShippingVatRate, setPostalShippingVatRate] = useState(19);
   const [foodName, setFoodName] = useState("");
@@ -207,14 +215,16 @@ export default function Performances({ onBack }: Props) {
   const [additionalProviderType, setAdditionalProviderType] = useState<ProviderType>("internal");
   const [additionalProviderName, setAdditionalProviderName] = useState("");
   const [maxTicketsPerOrder, setMaxTicketsPerOrder] = useState("10");
+  const [serviceFeePercent, setServiceFeePercent] = useState("3");
 
   const ticketPrice = calculateGrossComponent(ticketPriceGross, ticketVatRate);
   const foodPrice = calculateGrossComponent(foodPriceGross, foodVatRate);
   const drinkPrice = calculateGrossComponent(drinkPriceGross, drinkVatRate);
   const additionalPrice = calculateGrossComponent(additionalFeeGross, additionalFeeVatRate);
   const subtotalGross = Math.round((ticketPrice.gross + foodPrice.gross + drinkPrice.gross + additionalPrice.gross) * 100) / 100;
-  const serviceFeeGross = Math.round(subtotalGross * 0.1 * 100) / 100;
-  const servicePrice = calculateGrossComponent(serviceFeeGross, serviceVatRate);
+  const normalizedServiceFeePercent = Math.max(0, Math.min(100, Number(serviceFeePercent) || 0));
+  const serviceFeeGross = Math.round(subtotalGross * normalizedServiceFeePercent) / 100;
+  const servicePrice = calculateGrossComponent(serviceFeeGross, 19);
   const postalShippingPrice = calculateGrossComponent(postalShippingGross, postalShippingVatRate);
   const totalNet = ticketPrice.net + foodPrice.net + drinkPrice.net + additionalPrice.net + servicePrice.net;
   const totalVat = ticketPrice.vat + foodPrice.vat + drinkPrice.vat + additionalPrice.vat + servicePrice.vat;
@@ -264,8 +274,29 @@ export default function Performances({ onBack }: Props) {
     }
   }
 
+  async function loadInvoiceTemplates() {
+    try {
+      const response = await fetch("/api/invoice-templates?include_inactive=true");
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(
+          data?.detail ??
+            `Rechnungsvorlagen konnten nicht geladen werden (HTTP ${response.status}).`,
+        );
+      }
+      setInvoiceTemplates(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Rechnungsvorlagen konnten nicht geladen werden.",
+      );
+    }
+  }
+
   useEffect(() => {
     void loadPerformances();
+    void loadInvoiceTemplates();
   }, []);
 
   function resetFields() {
@@ -278,6 +309,7 @@ export default function Performances({ onBack }: Props) {
     setImageUrl("");
     setImageUploadError("");
     setVenueName("");
+    setInvoiceTemplateId("");
     setDoorsTime("");
     setSalesStartAt("");
     setSalesEndAt("");
@@ -286,7 +318,6 @@ export default function Performances({ onBack }: Props) {
     setCapacity("");
     setTicketPriceGross("0");
     setTicketVatRate(7);
-    setServiceVatRate(19);
     setPostalShippingGross("0");
     setPostalShippingVatRate(19);
     setFoodName("");
@@ -305,6 +336,7 @@ export default function Performances({ onBack }: Props) {
     setAdditionalProviderType("internal");
     setAdditionalProviderName("");
     setMaxTicketsPerOrder("10");
+    setServiceFeePercent("3");
   }
 
   function closeForm() {
@@ -331,6 +363,12 @@ export default function Performances({ onBack }: Props) {
     setImageUrl(performance.image_url || "");
     setImageUploadError("");
     setVenueName(performance.venue_name || "");
+    const linkedInvoiceTemplate = invoiceTemplates.find(
+      (template) => template.performance_id === performance.id && template.is_active,
+    ) || invoiceTemplates.find(
+      (template) => template.performance_id === performance.id,
+    );
+    setInvoiceTemplateId(linkedInvoiceTemplate?.id ?? "");
     setDoorsTime(performance.doors_time?.slice(0, 5) || "");
     setSalesStartAt(toDatetimeLocal(performance.sales_start_at));
     setSalesEndAt(toDatetimeLocal(performance.sales_end_at));
@@ -353,9 +391,9 @@ export default function Performances({ onBack }: Props) {
 
     setTicketPriceGross((ticketItem?.gross_amount ?? legacyTicketGross).toString());
     setTicketVatRate(ticketItem?.vat_rate ?? legacyTicketRate);
-    setServiceVatRate(performance.service_vat_rate ?? 19);
     setPostalShippingGross((performance.postal_shipping_gross ?? 0).toString());
     setPostalShippingVatRate(performance.postal_shipping_vat_rate ?? 19);
+    setServiceFeePercent((performance.service_fee_percent ?? 3).toString());
     setFoodName(foodItem?.name || "");
     setFoodPriceGross((foodItem?.gross_amount ?? 0).toString());
     setFoodVatRate(foodItem?.vat_rate ?? 7);
@@ -429,6 +467,7 @@ export default function Performances({ onBack }: Props) {
             description,
             image_url: imageUrl,
             venue_name: venueName,
+            invoice_template_id: invoiceTemplateId === "" ? null : invoiceTemplateId,
             doors_time: doorsTime || null,
             sales_start_at: salesStartAt ? new Date(salesStartAt).toISOString() : null,
             sales_end_at: salesEndAt ? new Date(salesEndAt).toISOString() : null,
@@ -439,12 +478,12 @@ export default function Performances({ onBack }: Props) {
             ticket_price_net: ticketPrice.net,
             ticket_vat_rate: ticketVatRate,
             service_fee_net: servicePrice.net,
-            service_vat_rate: serviceVatRate,
+            service_vat_rate: 19,
             additional_fee_name: additionalFeeName,
             additional_fee_net: additionalPrice.net,
             additional_fee_vat_rate: additionalFeeVatRate,
             price_items: configuredPriceItems,
-            service_fee_percent: 10,
+            service_fee_percent: normalizedServiceFeePercent,
             postal_shipping_gross: postalShippingPrice.gross,
             postal_shipping_vat_rate: postalShippingVatRate,
             max_tickets_per_order: Number(maxTicketsPerOrder),
@@ -459,7 +498,7 @@ export default function Performances({ onBack }: Props) {
         );
       }
       closeForm();
-      await loadPerformances();
+      await Promise.all([loadPerformances(), loadInvoiceTemplates()]);
     } catch (err) {
       setError(
         err instanceof Error
@@ -520,6 +559,13 @@ export default function Performances({ onBack }: Props) {
     localStorage.getItem("theater.loggedInUser") || "{}",
   );
   const isAdmin = loggedInUser.role === "admin";
+  const selectableInvoiceTemplates = invoiceTemplates.filter(
+    (template) => template.is_active && (
+      template.performance_id === null ||
+      template.performance_id === editingId ||
+      template.id === invoiceTemplateId
+    ),
+  );
 
   return (
     <main className="performances-page">
@@ -581,12 +627,29 @@ export default function Performances({ onBack }: Props) {
                 </label>
                 <label className="field field-wide">
                   <span>Veranstaltungsort {publicationStatus !== "draft" ? "*" : ""}</span>
-                  <input
+                  <textarea
                     value={venueName}
                     onChange={(event) => setVenueName(event.target.value)}
-                    placeholder="z. B. Theater am Stadtpark"
+                    placeholder={"Boulevardtheater Deidesheim Stadthalle\nBahnhofstr. 11\n67146 Deidesheim"}
+                    rows={3}
                     required={publicationStatus !== "draft"}
                   />
+                  <small>Der eingegebene Ort wird in die ausgewählte Rechnungsvorlage übernommen.</small>
+                </label>
+                <label className="field field-wide">
+                  <span>Rechnungsvorlage für diese Veranstaltung</span>
+                  <select
+                    value={invoiceTemplateId}
+                    onChange={(event) => setInvoiceTemplateId(event.target.value ? Number(event.target.value) : "")}
+                  >
+                    <option value="">Keine Rechnungsvorlage verknüpfen</option>
+                    {selectableInvoiceTemplates.map((template) => (
+                      <option key={template.id} value={template.id}>
+                        {template.name}{template.performance_id === editingId ? " · bereits verknüpft" : ""}
+                      </option>
+                    ))}
+                  </select>
+                  <small>Beim Speichern übernimmt diese Vorlage den Veranstaltungsort einschließlich aller Adresszeilen.</small>
                 </label>
               </div>
             </section>
@@ -781,26 +844,30 @@ export default function Performances({ onBack }: Props) {
                     setProviderName={setAdditionalProviderName}
                   />
 
-                  <div className="pricing-row automatic-service-row">
+                  {isAdmin && <div className="pricing-row automatic-service-row">
                     <div className="automatic-service-copy">
                       <span>Servicepauschale</span>
-                      <strong>10 % von {formatMoney(subtotalGross)}</strong>
-                      <small>Wird immer automatisch berechnet.</small>
+                      <strong>Automatisch berechnet</strong>
+                      <small>Nur Administratoren können den Prozentsatz ändern.</small>
                     </div>
                     <label className="field">
-                      <span>MwSt. Service</span>
-                      <select value={serviceVatRate} onChange={(event) => setServiceVatRate(Number(event.target.value))}>
-                        <option value={0}>0 %</option>
-                        <option value={7}>7 %</option>
-                        <option value={19}>19 %</option>
-                      </select>
+                      <span>Service in %</span>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.01"
+                        value={serviceFeePercent}
+                        onChange={(event) => setServiceFeePercent(event.target.value)}
+                      />
+                      <small>19 % MwSt. fest</small>
                     </label>
                     <div className="provider-badge external">Externe Leistung</div>
                     <div className="pricing-result">
                       <span>netto {formatMoney(servicePrice.net)} · MwSt. {formatMoney(servicePrice.vat)}</span>
                       <strong>{formatMoney(serviceFeeGross)}</strong>
                     </div>
-                  </div>
+                  </div>}
 
                   <div className="pricing-summary">
                     <span>Zwischensumme <strong>{formatMoney(subtotalGross)}</strong></span>

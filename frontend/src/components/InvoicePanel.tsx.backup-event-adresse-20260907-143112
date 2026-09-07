@@ -582,30 +582,15 @@ function escapeHtml(value: unknown) {
 }
 
 function normalizeVenueText(value: unknown) {
-  return String(value || "")
+  const normalized = String(value || "")
     .split(/\r?\n/)
     .map((line) => line.trim())
     .join("\n")
     .trim();
+  return normalized === LEGACY_VENUE_EXAMPLE ? "" : normalized;
 }
 
-function resolveTemplateVenueText(
-  storedVenue: unknown,
-  performanceVenue?: unknown,
-) {
-  const stored = normalizeVenueText(storedVenue);
-  const fromPerformance = normalizeVenueText(performanceVenue);
-
-  if (fromPerformance && (!stored || stored === LEGACY_VENUE_EXAMPLE)) {
-    return fromPerformance;
-  }
-  return stored === LEGACY_VENUE_EXAMPLE ? "" : stored;
-}
-
-function templateToForm(
-  template: InvoiceTemplate,
-  performance?: InvoicePerformance | null,
-): TemplateForm {
+function templateToForm(template: InvoiceTemplate): TemplateForm {
   const data = template.template_data || {};
   return {
     id: template.id,
@@ -621,10 +606,7 @@ function templateToForm(
     tax_number: THEATER_MASTER.tax_number,
     iban: THEATER_MASTER.iban,
     bank_name: THEATER_MASTER.bank_name,
-    venue_text: resolveTemplateVenueText(
-      data.venue_text,
-      performance?.venue_name,
-    ),
+    venue_text: normalizeVenueText(data.venue_text),
     payment_text: String(data.payment_text || ""),
     reference_label: String(data.reference_label || "Verwendungszweck / Referenz Nr."),
     thank_you_text: String(data.thank_you_text || ""),
@@ -1034,10 +1016,7 @@ export default function InvoicePanel({
       const refreshed = await loadTemplates(undefined, true);
       const saved = refreshed.find((item) => item.id === savedId);
       if (!saved) throw new Error("Die Vorlage wurde gesendet, konnte danach aber nicht erneut geladen werden.");
-      setForm(templateToForm(
-        saved,
-        performances.find((item) => item.id === saved.performance_id),
-      ));
+      setForm(templateToForm(saved));
       setTemplateId(saved.id);
       setMessage(`Rechnungsvorlage „${saved.name}“ wurde gespeichert und erneut geprüft.`);
     } catch (caught) {
@@ -1056,12 +1035,7 @@ export default function InvoicePanel({
       if (!response.ok) throw new Error(data?.detail || "Vorlage konnte nicht dupliziert werden.");
       const refreshed = await loadTemplates(undefined, true);
       const copy = refreshed.find((item) => item.id === data.id);
-      if (copy) {
-        setForm(templateToForm(
-          copy,
-          performances.find((item) => item.id === copy.performance_id),
-        ));
-      }
+      if (copy) setForm(templateToForm(copy));
       setMessage("Vorlage wurde dupliziert. Die Kopie kann jetzt angepasst werden.");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Vorlage konnte nicht dupliziert werden.");
@@ -1141,29 +1115,13 @@ export default function InvoicePanel({
     setMessage("");
   }
 
-  function changeTemplatePerformance(value: string) {
-    const performanceId = value ? Number(value) : "";
-    const selectedPerformance = performanceId === ""
-      ? null
-      : performances.find((item) => item.id === performanceId);
-    setForm((current) => ({
-      ...current,
-      performance_id: performanceId,
-      venue_text: performanceId === ""
-        ? current.venue_text
-        : normalizeVenueText(selectedPerformance?.venue_name),
-    }));
-    setMessage("");
-  }
-
   const templateData: TemplateData = created
     ? readSnapshotData(created.template_snapshot)
     : {
         ...(template?.template_data || {}),
         ...THEATER_MASTER,
-        venue_text: resolveTemplateVenueText(
-          template?.template_data?.venue_text,
-          performance?.venue_name,
+        venue_text: normalizeVenueText(
+          template?.template_data?.venue_text || performance?.venue_name
         ),
         footer_lines: [...THEATER_MASTER.footer_lines],
         exchange_text: EXCHANGE_NOTICE,
@@ -1315,10 +1273,21 @@ export default function InvoicePanel({
           <footer>{(Array.isArray(templateData.footer_lines) ? templateData.footer_lines : []).map((line, index) => <div key={index}>{line}</div>)}</footer>
         </div></section>
       </div> : <div className="invoice-v2-template-workspace">
-        <aside className="invoice-v2-template-list"><button className="invoice-v2-new" onClick={() => setForm(newForm())}>+ Neue Vorlage</button>{loading && <p>Lade Vorlagen …</p>}{templates.map((item) => { const itemPerformance = performances.find((performanceItem) => performanceItem.id === item.performance_id); return <button key={item.id} className={form.id === item.id ? "selected" : ""} onClick={() => setForm(templateToForm(item, itemPerformance))}><strong>{item.name}</strong><span>{itemPerformance?.title || (item.performance_id ? "Event" : "Alle Events")}</span><small>{invoiceNumberExample(item.number_prefix, itemPerformance?.date, Number(item.template_data.sequence_width || 3))} · {item.is_active ? "Aktiv" : "Inaktiv"}</small></button>; })}</aside>
+        <aside className="invoice-v2-template-list"><button className="invoice-v2-new" onClick={() => setForm(newForm())}>+ Neue Vorlage</button>{loading && <p>Lade Vorlagen …</p>}{templates.map((item) => { const itemPerformance = performances.find((performanceItem) => performanceItem.id === item.performance_id); return <button key={item.id} className={form.id === item.id ? "selected" : ""} onClick={() => setForm(templateToForm(item))}><strong>{item.name}</strong><span>{itemPerformance?.title || (item.performance_id ? "Event" : "Alle Events")}</span><small>{invoiceNumberExample(item.number_prefix, itemPerformance?.date, Number(item.template_data.sequence_width || 3))} · {item.is_active ? "Aktiv" : "Inaktiv"}</small></button>; })}</aside>
         <section className="invoice-v2-template-editor">
           <div className="invoice-v2-editor-title"><div><h3>{form.id ? "Vorlage bearbeiten" : "Neue Vorlage"}</h3><p>Die verwendete Vorlage wird bei jeder fertigen Rechnung unveränderlich mitgespeichert.</p></div>{form.id && <div className="invoice-v2-editor-buttons"><button onClick={() => { const selected = templates.find((item) => item.id === form.id); if (selected) void duplicateTemplate(selected); }}>Vorlage duplizieren</button>{isAdmin && <button className="danger" onClick={() => { const selected = templates.find((item) => item.id === form.id); if (selected) { setDeleteTarget(selected); setDeleteConfirmation(""); } }}>Vorlage löschen</button>}</div>}</div>
-          <div className="invoice-v2-form-grid"><label>Vorlagenname<input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label><label>Event-Zuordnung<select value={form.performance_id} onChange={(event) => changeTemplatePerformance(event.target.value)}><option value="">Allgemein – alle Events</option>{performances.map((item) => <option key={item.id} value={item.id}>{formatDate(item.date)} · {item.title}</option>)}</select></label><label>Standard-MwSt. für neue Positionen<select value={form.default_tax_rate} onChange={(event) => setForm({ ...form, default_tax_rate: Number(event.target.value) })}>{TAX_RATES.map((rate) => <option key={rate} value={rate}>{rate} %</option>)}</select></label><label>Laufende Nummer<input readOnly value="3 Stellen (001)" /></label><label className="full">Interne Beschreibung<input value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} /></label></div>
+          <div className="invoice-v2-form-grid"><label>Vorlagenname<input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label><label>Event-Zuordnung<select value={form.performance_id} onChange={(event) => {
+  const performanceId = event.target.value ? Number(event.target.value) : "";
+  const selectedPerformance = performances.find((item) => item.id === performanceId);
+
+  setForm((current) => ({
+    ...current,
+    performance_id: performanceId,
+    venue_text: selectedPerformance?.venue_name?.trim()
+      ? selectedPerformance.venue_name
+      : current.venue_text,
+  }));
+}}><option value="">Allgemein – alle Events</option>{performances.map((item) => <option key={item.id} value={item.id}>{formatDate(item.date)} · {item.title}</option>)}</select></label><label>Standard-MwSt. für neue Positionen<select value={form.default_tax_rate} onChange={(event) => setForm({ ...form, default_tax_rate: Number(event.target.value) })}>{TAX_RATES.map((rate) => <option key={rate} value={rate}>{rate} %</option>)}</select></label><label>Laufende Nummer<input readOnly value="3 Stellen (001)" /></label><label className="full">Interne Beschreibung<input value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} /></label></div>
           <h4>Rechnungsnummer</h4><div className="invoice-v2-number-grid"><label>Event-Kürzel<input value={form.number_prefix} onChange={(event) => setForm({ ...form, number_prefix: event.target.value })} /></label><span>– TTMM –</span><label>Beispiel<input readOnly value={formNumberExample} /></label></div><div className="invoice-v2-hint">Format: Event-Kürzel – Veranstaltungstag und -monat – laufende Nummer. Jede Vorstellung beginnt bei 001; die Nummer wird transaktionssicher vergeben.</div>
           <h4>Veranstaltungsort auf der Rechnung</h4><div className="invoice-v2-hint">Optional. Hier kannst du den Namen und die vollständige Adresse frei und mehrzeilig eingeben. Bleibt das Feld leer, wird kein Veranstaltungsort gedruckt.</div><div className="invoice-v2-form-grid"><label className="full">Veranstaltungsort und Adresse<textarea rows={4} placeholder={"Boulevardtheater Deidesheim Stadthalle\nBahnhofstr. 11\n67146 Deidesheim"} value={form.venue_text} onChange={(event) => setForm({ ...form, venue_text: event.target.value })} /></label></div>
           <h4>Absender und Zahlung</h4><div className="invoice-v2-hint">Absender, Steuernummer, IBAN, Bank und Fußzeile sind feste Theaterdaten. Der Bearbeiter wird bei jeder Rechnung automatisch aus der angemeldeten Person übernommen.</div><div className="invoice-v2-form-grid invoice-v2-master-data"><label className="full">Absenderzeile<input readOnly value={form.sender_line} /></label><label>Firmen-/Kontoinhaber<input readOnly value={form.company_name} /></label><label>Steuernummer<input readOnly value={form.tax_number} /></label><label>IBAN<input readOnly value={form.iban} /></label><label>Bank<input readOnly value={form.bank_name} /></label><label>Referenz-Bezeichnung<input value={form.reference_label} onChange={(event) => setForm({ ...form, reference_label: event.target.value })} /></label><label className="full">Zahlungshinweis<textarea rows={2} value={form.payment_text} onChange={(event) => setForm({ ...form, payment_text: event.target.value })} /></label></div>

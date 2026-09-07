@@ -27,6 +27,9 @@ type TischsaalPlanProps = {
   assignments?: {
     seat_id: number;
     status: string;
+    booking_number?: string;
+    first_name?: string;
+    last_name?: string;
   }[];
 };
 
@@ -215,6 +218,26 @@ export default function TischsaalPlan({
                         ? "seat-storniert"
                         : "seat-free";
 
+              const assignedPerson = [
+                seatAssignment?.first_name,
+                seatAssignment?.last_name,
+              ]
+                .filter(Boolean)
+                .join(" ");
+
+              const seatDescription = seatAssignment
+                ? [
+                    `Tisch ${table.number}, Platz ${seat.number}`,
+                    assignedPerson || seatAssignment.booking_number,
+                    assignedPerson
+                      ? seatAssignment.booking_number
+                      : null,
+                    seatStatus,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")
+                : `Tisch ${table.number}, Platz ${seat.number} · frei`;
+
               return (
                 <button
                   key={`${table.number}-${seat.number}`}
@@ -236,12 +259,8 @@ export default function TischsaalPlan({
                       dbSeat.id,
                     )
                   }
-                  title={
-                    `Tisch ${table.number}, Platz ${seat.number}`
-                  }
-                  aria-label={
-                    `Tisch ${table.number}, Platz ${seat.number}`
-                  }
+                  title={seatDescription}
+                  aria-label={seatDescription}
                 >
                   {seat.number}
                 </button>

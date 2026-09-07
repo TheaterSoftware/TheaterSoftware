@@ -13,13 +13,10 @@ type Performance = {
   title: string;
   performance_date: string;
   start_time: string;
-  venue_name?: string;
   hall_plan_type?: "hall_1" | "hall_2";
   price_from?: number;
-  service_fee_percent?: number;
   price_breakdown?: {
     subtotal_gross?: number;
-    service_fee_percent?: number;
   };
   postal_shipping_gross?: number;
   postal_shipping_vat_rate?: number;
@@ -70,28 +67,7 @@ function performanceTicketPrice(performance?: Performance) {
   const subtotal = Number(performance?.price_breakdown?.subtotal_gross);
   if (Number.isFinite(subtotal) && subtotal >= 0) return subtotal;
   const totalWithService = Number(performance?.price_from || 0);
-  const servicePercentage = performanceServicePercentage(performance);
-  return Math.round((totalWithService / (1 + servicePercentage / 100)) * 100) / 100;
-}
-
-function performanceServicePercentage(performance?: Performance) {
-  const percentage = Number(
-    performance?.service_fee_percent
-      ?? performance?.price_breakdown?.service_fee_percent
-      ?? 0,
-  );
-  if (!Number.isFinite(percentage)) return 0;
-  return Math.min(100, Math.max(0, percentage));
-}
-
-function performanceServiceFee(
-  performance: Performance | undefined,
-  ticketPrice: number,
-  ticketCount: number,
-) {
-  return Math.round(
-    ticketPrice * Math.max(1, ticketCount) * performanceServicePercentage(performance),
-  ) / 100;
+  return Math.round((totalWithService / 1.1) * 100) / 100;
 }
 
 function statusClass(status: string) {
@@ -449,13 +425,7 @@ export default function BookingsPage({
     const frozenUnitPrice = performanceTicketPrice(selectedPerformance);
     const count = Math.max(1, Number(ticketCount) || 1);
     setTicketPrice(frozenUnitPrice.toFixed(2));
-    setServiceFee(
-      performanceServiceFee(
-        selectedPerformance,
-        frozenUnitPrice,
-        count,
-      ).toFixed(2),
-    );
+    setServiceFee((Math.round(frozenUnitPrice * count * 0.03 * 100) / 100).toFixed(2));
   }, [selectedPerformance, ticketCount]);
 
   const performanceMap = useMemo(() => {
@@ -1182,7 +1152,6 @@ export default function BookingsPage({
               date: performance.performance_date,
               time: performance.start_time,
               title: performance.title,
-              venue_name: performance.venue_name,
               postal_shipping_gross: performance.postal_shipping_gross,
               postal_shipping_vat_rate: performance.postal_shipping_vat_rate,
             }),
