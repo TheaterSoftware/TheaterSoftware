@@ -1903,24 +1903,6 @@ def ensure_email_template_settings_table():
         conn.commit()
 
 
-def ensure_email_event_templates_table():
-    """Speichert Buchungs- und Rechnungs-Mailgestaltung pro Vorstellung."""
-    with psycopg.connect(DB_CONFIG) as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                CREATE TABLE IF NOT EXISTS email_event_templates (
-                    performance_id BIGINT PRIMARY KEY,
-                    settings JSONB NOT NULL DEFAULT '{}'::jsonb,
-                    updated_at TIMESTAMP WITHOUT TIME ZONE
-                        NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                    updated_by TEXT NOT NULL DEFAULT ''
-                )
-                """
-            )
-        conn.commit()
-
-
 def ensure_ticket_email_template_settings_table():
     """Speichert die separate Offline-Vorlage für die Ticket-Mail."""
     with psycopg.connect(DB_CONFIG) as conn:
@@ -2111,20 +2093,6 @@ def ensure_public_checkout_tables():
             cur.execute(
                 """
                 ALTER TABLE bookings
-                ADD COLUMN IF NOT EXISTS additional_fee NUMERIC(12, 2)
-                NOT NULL DEFAULT 0
-                """
-            )
-            cur.execute(
-                """
-                ALTER TABLE bookings
-                ADD COLUMN IF NOT EXISTS additional_items JSONB
-                NOT NULL DEFAULT '[]'::jsonb
-                """
-            )
-            cur.execute(
-                """
-                ALTER TABLE bookings
                 ADD COLUMN IF NOT EXISTS stripe_checkout_session_id TEXT NULL
                 """
             )
@@ -2153,15 +2121,12 @@ def startup():
     ensure_tischsaal_seats()
     ensure_invoice_module_tables()
     migrate_included_ticket_components()
-    migrate_performance_price_model()
     ensure_invoice_email_delivery_tables()
     ensure_email_template_settings_table()
-    ensure_email_event_templates_table()
     ensure_ticket_email_template_settings_table()
     ensure_ticket_event_templates_table()
     ensure_ticket_passes_table()
     ensure_public_checkout_tables()
-    migrate_booking_additional_costs()
     backfill_paid_online_staff_seats()
 
 
@@ -2427,6 +2392,13 @@ def ensure_public_performance_columns():
             )
             cur.execute(
                 """
+                UPDATE performances
+                SET service_fee_percent = 3
+                WHERE service_fee_percent IS DISTINCT FROM 3
+                """
+            )
+            cur.execute(
+                """
                 ALTER TABLE performances
                 ADD COLUMN IF NOT EXISTS postal_shipping_gross NUMERIC(10, 2)
                 NOT NULL DEFAULT 0
@@ -2531,32 +2503,17 @@ SEATING_MODES = {
 VAT_RATES = {0, 7, 19}
 PRICE_ITEM_CATEGORIES = {"ticket", "food", "drink", "other"}
 PROVIDER_TYPES = {"internal", "external"}
-DEFAULT_SERVICE_FEE_PERCENT = Decimal("3.00")
+SERVICE_FEE_PERCENT = Decimal("3.00")
 SERVICE_VAT_RATE = 19
 
 
-def normalize_performance_service_percentage(value):
-    percentage = Decimal(
-        str(DEFAULT_SERVICE_FEE_PERCENT if value is None else value)
-    )
-    if not percentage.is_finite() or percentage < 0 or percentage > 100:
-        raise ValueError("Die Servicepauschale muss zwischen 0 % und 100 % liegen.")
-    return percentage.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-
-
-def calculate_service_gross(
-    base_gross,
-    service_fee_percent=DEFAULT_SERVICE_FEE_PERCENT,
-):
+def calculate_service_gross(base_gross):
     base = Decimal(str(base_gross or 0)).quantize(
         Decimal("0.01"),
         rounding=ROUND_HALF_UP,
     )
-    percentage = normalize_performance_service_percentage(
-        service_fee_percent,
-    )
     return (
-        base * percentage / Decimal("100")
+        base * SERVICE_FEE_PERCENT / Decimal("100")
     ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
@@ -2584,19 +2541,14 @@ def calculate_price_breakdown(
     additional_fee_name: str,
     additional_fee_net,
     additional_fee_vat_rate: int,
-    service_fee_percent=DEFAULT_SERVICE_FEE_PERCENT,
 ):
     ticket = calculate_price_component(ticket_price_net, ticket_vat_rate)
     additional = calculate_price_component(
         additional_fee_net,
         additional_fee_vat_rate,
     )
-    ticket_total_gross = Decimal(str(ticket["gross"]))
-    additional_gross = Decimal(str(additional["gross"]))
-    service_base_gross = ticket_total_gross + additional_gross
     service_gross = calculate_service_gross(
-        service_base_gross,
-        service_fee_percent,
+        Decimal(str(ticket["gross"])) + Decimal(str(additional["gross"]))
     )
     service = calculate_gross_price_component(
         {
@@ -2620,16 +2572,6 @@ def calculate_price_breakdown(
             "name": additional_fee_name.strip(),
             **additional,
         },
-        "ticket_total_gross": float(ticket_total_gross),
-        # Bestehende Frontends verwenden subtotal_gross als Ticketpreis vor
-        # Zusatzkosten und Service. Diese Bedeutung bleibt absichtlich stabil.
-        "subtotal_gross": float(ticket_total_gross),
-        "additional_gross": float(additional_gross),
-        "booking_unit_gross": float(service_base_gross),
-        "service_base_gross": float(service_base_gross),
-        "service_fee_percent": float(
-            normalize_performance_service_percentage(service_fee_percent)
-        ),
         "total_net": float(total_net),
         "total_vat": float(total_vat),
         "total_gross": float(total_gross),
@@ -2661,32 +2603,17 @@ def calculate_gross_price_component(item):
     }
 
 
-def calculate_structured_price_breakdown(
-    price_items,
-    service_fee_percent=DEFAULT_SERVICE_FEE_PERCENT,
-):
+def calculate_structured_price_breakdown(price_items):
     items = [calculate_gross_price_component(item) for item in price_items]
     items.sort(
         key=lambda item: Decimal(str(item["gross"])),
         reverse=True,
     )
-    ticket_items = [
-        item for item in items if item["category"] in {"ticket", "food", "drink"}
-    ]
-    additional_items = [item for item in items if item["category"] == "other"]
-    ticket_total_gross = sum(
-        (Decimal(str(item["gross"])) for item in ticket_items),
+    subtotal_gross = sum(
+        (Decimal(str(item["gross"])) for item in items),
         Decimal("0"),
     )
-    additional_gross = sum(
-        (Decimal(str(item["gross"])) for item in additional_items),
-        Decimal("0"),
-    )
-    service_base_gross = ticket_total_gross + additional_gross
-    service_gross = calculate_service_gross(
-        service_base_gross,
-        service_fee_percent,
-    )
+    service_gross = calculate_service_gross(subtotal_gross)
     service = calculate_gross_price_component(
         {
             "category": "service",
@@ -2706,21 +2633,13 @@ def calculate_structured_price_breakdown(
         (Decimal(str(item["vat"])) for item in items),
         Decimal("0"),
     ) + Decimal(str(service["vat"]))
-    total_gross = service_base_gross + service_gross
+    total_gross = subtotal_gross + service_gross
 
     return {
         "items": items,
-        "ticket_items": ticket_items,
-        "additional_items": additional_items,
         "service": service,
-        "service_fee_percent": float(
-            normalize_performance_service_percentage(service_fee_percent)
-        ),
-        "ticket_total_gross": float(ticket_total_gross),
-        "subtotal_gross": float(ticket_total_gross),
-        "additional_gross": float(additional_gross),
-        "booking_unit_gross": float(service_base_gross),
-        "service_base_gross": float(service_base_gross),
+        "service_fee_percent": float(SERVICE_FEE_PERCENT),
+        "subtotal_gross": float(subtotal_gross),
         "total_net": float(total_net),
         "total_vat": float(total_vat),
         "total_gross": float(total_gross),
@@ -2754,23 +2673,12 @@ def migrate_included_ticket_components():
 
             cur.execute(
                 """
-                SELECT
-                    id,
-                    ticket_price_net,
-                    ticket_vat_rate,
-                    price_items,
-                    service_fee_percent
+                SELECT id, ticket_price_net, ticket_vat_rate, price_items
                 FROM performances
                 ORDER BY id
                 """
             )
-            for (
-                performance_id,
-                legacy_ticket_net,
-                ticket_vat_rate,
-                stored_items,
-                service_fee_percent,
-            ) in cur.fetchall():
+            for performance_id, legacy_ticket_net, ticket_vat_rate, stored_items in cur.fetchall():
                 if not isinstance(stored_items, list) or not stored_items:
                     continue
 
@@ -2819,10 +2727,7 @@ def migrate_included_ticket_components():
                     Decimal("0.01"),
                     rounding=ROUND_HALF_UP,
                 )
-                breakdown = calculate_structured_price_breakdown(
-                    items,
-                    service_fee_percent,
-                )
+                breakdown = calculate_structured_price_breakdown(items)
                 cur.execute(
                     """
                     UPDATE performances
@@ -2837,7 +2742,7 @@ def migrate_included_ticket_components():
                         admission_net,
                         Decimal(str(breakdown["service"]["net"])).quantize(Decimal("0.01")),
                         Jsonb(items),
-                        Decimal(str(breakdown["ticket_total_gross"])).quantize(Decimal("0.01")),
+                        Decimal(str(breakdown["total_gross"])).quantize(Decimal("0.01")),
                         performance_id,
                     ),
                 )
@@ -2852,83 +2757,6 @@ def migrate_included_ticket_components():
             conn.commit()
 
 
-PERFORMANCE_PRICE_MODEL_MIGRATION = "performance_price_model_v2"
-
-
-def migrate_performance_price_model():
-    """Korrigiert abgeleitete Preise, ohne gespeicherte 0-%-Werte anzutasten."""
-    with psycopg.connect(DB_CONFIG) as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT 1
-                FROM invoice_module_migrations
-                WHERE migration_key = %s
-                LIMIT 1
-                """,
-                (PERFORMANCE_PRICE_MODEL_MIGRATION,),
-            )
-            if cur.fetchone():
-                return
-
-            cur.execute(
-                """
-                SELECT
-                    id,
-                    ticket_price_net,
-                    ticket_vat_rate,
-                    additional_fee_name,
-                    additional_fee_net,
-                    additional_fee_vat_rate,
-                    price_items,
-                    service_fee_percent
-                FROM performances
-                ORDER BY id
-                """
-            )
-            for row in cur.fetchall():
-                service_fee_percent = row[7]
-                price_items = row[6] if isinstance(row[6], list) else []
-                if price_items:
-                    breakdown = calculate_structured_price_breakdown(
-                        price_items,
-                        service_fee_percent,
-                    )
-                else:
-                    breakdown = calculate_price_breakdown(
-                        row[1],
-                        int(row[2] or 0),
-                        0,
-                        row[3] or "",
-                        row[4],
-                        int(row[5] or 0),
-                        service_fee_percent,
-                    )
-                cur.execute(
-                    """
-                    UPDATE performances
-                    SET
-                        price_from = %s,
-                        service_fee_net = %s
-                    WHERE id = %s
-                    """,
-                    (
-                        Decimal(str(breakdown["ticket_total_gross"])),
-                        Decimal(str(breakdown["service"]["net"])),
-                        row[0],
-                    ),
-                )
-
-            cur.execute(
-                """
-                INSERT INTO invoice_module_migrations (migration_key)
-                VALUES (%s)
-                """,
-                (PERFORMANCE_PRICE_MODEL_MIGRATION,),
-            )
-            conn.commit()
-
-
 def make_public_slug(title: str, performance_id: int) -> str:
     normalized = unicodedata.normalize("NFKD", title)
     ascii_title = normalized.encode("ascii", "ignore").decode("ascii")
@@ -2938,13 +2766,9 @@ def make_public_slug(title: str, performance_id: int) -> str:
 
 def performance_to_dict(row):
     price_items = row[26] if isinstance(row[26], list) else []
-    service_fee_percent = normalize_performance_service_percentage(row[27])
 
     if price_items:
-        price_breakdown = calculate_structured_price_breakdown(
-            price_items,
-            service_fee_percent,
-        )
+        price_breakdown = calculate_structured_price_breakdown(price_items)
     else:
         price_breakdown = calculate_price_breakdown(
             row[19],
@@ -2953,7 +2777,6 @@ def performance_to_dict(row):
             row[23] or "",
             row[24],
             int(row[25] or 0),
-            service_fee_percent,
         )
 
     return {
@@ -2973,18 +2796,18 @@ def performance_to_dict(row):
         "publication_status": row[13] or "draft",
         "seating_mode": row[14] or "assigned",
         "capacity": row[15],
-        "price_from": float(price_breakdown["ticket_total_gross"]),
+        "price_from": float(price_breakdown["total_gross"]),
         "max_tickets_per_order": int(row[17] or 10),
         "public_slug": row[18] or "",
         "ticket_price_net": float(row[19] or 0),
         "ticket_vat_rate": int(row[20] or 0),
-        "service_fee_net": float(price_breakdown["service"]["net"]),
+        "service_fee_net": float(row[21] or 0),
         "service_vat_rate": SERVICE_VAT_RATE,
         "additional_fee_name": row[23] or "",
         "additional_fee_net": float(row[24] or 0),
         "additional_fee_vat_rate": int(row[25] or 0),
         "price_items": price_items,
-        "service_fee_percent": float(service_fee_percent),
+        "service_fee_percent": float(SERVICE_FEE_PERCENT),
         "postal_shipping_gross": float(row[28] or 0),
         "postal_shipping_vat_rate": int(row[29] or 19),
         "price_breakdown": price_breakdown,
@@ -3025,170 +2848,31 @@ PERFORMANCE_SELECT_COLUMNS = """
 """
 
 
-def booking_additional_items_snapshot(performance: dict):
-    """Friert Zusatzkosten getrennt vom eigentlichen Ticketpreis ein."""
-    result = []
-    breakdown = performance.get("price_breakdown") or {}
-    for item in breakdown.get("additional_items") or []:
-        gross = Decimal(str(item.get("gross", 0) or 0)).quantize(
-            Decimal("0.01"),
-            rounding=ROUND_HALF_UP,
-        )
-        if gross <= 0:
-            continue
-        result.append(
-            {
-                "category": "other",
-                "name": str(item.get("name") or "Sonstige Kosten").strip(),
-                "gross_amount": float(gross),
-                "vat_rate": int(item.get("vat_rate", 0) or 0),
-                "provider_type": item.get("provider_type", "internal"),
-                "provider_name": str(item.get("provider_name", "")).strip(),
-            }
-        )
-
-    if result:
-        return result
-
-    additional = breakdown.get("additional") or {}
-    gross = Decimal(str(additional.get("gross", 0) or 0)).quantize(
-        Decimal("0.01"),
-        rounding=ROUND_HALF_UP,
-    )
-    if gross <= 0:
-        return []
-    return [
-        {
-            "category": "other",
-            "name": str(additional.get("name") or "Sonstige Kosten").strip(),
-            "gross_amount": float(gross),
-            "vat_rate": int(additional.get("vat_rate", 0) or 0),
-            "provider_type": "internal",
-            "provider_name": "",
-        }
-    ]
-
-
 def calculate_booking_price_snapshot(performance_row, ticket_count: int):
-    """Friert Ticket und Zusatzkosten als getrennte Buchungswerte ein."""
+    """Ermittelt den festen Vorverkaufspreis einer Buchung aus dem Event."""
     performance = performance_to_dict(performance_row)
     breakdown = performance["price_breakdown"]
 
-    ticket_unit_gross = Decimal(
-        str(
-            breakdown.get("ticket_total_gross")
-            if breakdown.get("ticket_total_gross") is not None
-            else breakdown.get("subtotal_gross", 0)
+    if performance["price_items"]:
+        ticket_unit_gross = Decimal(
+            str(breakdown.get("subtotal_gross", 0) or 0)
         )
-    )
+    else:
+        ticket_unit_gross = Decimal(
+            str(breakdown.get("ticket", {}).get("gross", 0) or 0)
+        ) + Decimal(
+            str(breakdown.get("additional", {}).get("gross", 0) or 0)
+        )
+
     ticket_unit_gross = ticket_unit_gross.quantize(
         Decimal("0.01"),
         rounding=ROUND_HALF_UP,
     )
-    additional_unit_gross = Decimal(
-        str(breakdown.get("additional_gross", 0) or 0)
-    ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-    additional_total_gross = (
-        additional_unit_gross * Decimal(ticket_count)
-    ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
     service_total_gross = calculate_service_gross(
-        ticket_unit_gross * Decimal(ticket_count) + additional_total_gross,
-        performance["service_fee_percent"],
+        ticket_unit_gross * Decimal(ticket_count)
     )
 
-    return (
-        float(ticket_unit_gross),
-        float(additional_total_gross),
-        booking_additional_items_snapshot(performance),
-        float(service_total_gross),
-    )
-
-
-BOOKING_ADDITIONAL_COSTS_MIGRATION = "booking_additional_costs_v1"
-
-
-def migrate_booking_additional_costs():
-    """
-    Trennt alte, eindeutig erkennbare Buchungspreise in Ticket und Zusatzkosten.
-    Abweichende historische Sonderpreise bleiben aus Sicherheitsgründen unberührt.
-    """
-    with psycopg.connect(DB_CONFIG) as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT 1
-                FROM invoice_module_migrations
-                WHERE migration_key = %s
-                LIMIT 1
-                """,
-                (BOOKING_ADDITIONAL_COSTS_MIGRATION,),
-            )
-            if cur.fetchone():
-                return
-
-            cur.execute(
-                """
-                SELECT id, performance_id, ticket_count, ticket_price
-                FROM bookings
-                WHERE COALESCE(additional_fee, 0) = 0
-                """
-            )
-            bookings_to_check = cur.fetchall()
-            for booking_id, performance_id, ticket_count, stored_ticket_price in bookings_to_check:
-                cur.execute(
-                    f"""
-                    SELECT {PERFORMANCE_SELECT_COLUMNS}
-                    FROM performances
-                    WHERE id = %s
-                    """,
-                    (performance_id,),
-                )
-                performance_row = cur.fetchone()
-                if not performance_row:
-                    continue
-                performance = performance_to_dict(performance_row)
-                breakdown = performance["price_breakdown"]
-                additional_unit = Decimal(
-                    str(breakdown.get("additional_gross", 0) or 0)
-                ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-                if additional_unit <= 0:
-                    continue
-                ticket_unit = Decimal(
-                    str(breakdown.get("ticket_total_gross", 0) or 0)
-                ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-                old_unit = Decimal(str(stored_ticket_price or 0)).quantize(
-                    Decimal("0.01"),
-                    rounding=ROUND_HALF_UP,
-                )
-                if old_unit not in {ticket_unit, ticket_unit + additional_unit}:
-                    continue
-                additional_total = (
-                    additional_unit * Decimal(int(ticket_count or 0))
-                ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-                cur.execute(
-                    """
-                    UPDATE bookings
-                    SET ticket_price = %s,
-                        additional_fee = %s,
-                        additional_items = %s
-                    WHERE id = %s
-                    """,
-                    (
-                        ticket_unit,
-                        additional_total,
-                        Jsonb(booking_additional_items_snapshot(performance)),
-                        booking_id,
-                    ),
-                )
-
-            cur.execute(
-                """
-                INSERT INTO invoice_module_migrations (migration_key)
-                VALUES (%s)
-                """,
-                (BOOKING_ADDITIONAL_COSTS_MIGRATION,),
-            )
-            conn.commit()
+    return float(ticket_unit_gross), float(service_total_gross)
 
 
 def validate_performance_data(data: PerformanceCreate):
@@ -3207,8 +2891,7 @@ def validate_performance_data(data: PerformanceCreate):
             detail="Ungültige Platzwahl.",
         )
 
-    declared_ticket_total = Decimal(str(data.price_from))
-    if not declared_ticket_total.is_finite() or declared_ticket_total < 0:
+    if data.price_from < 0:
         raise HTTPException(
             status_code=400,
             detail="Der Preis darf nicht negativ sein.",
@@ -3220,8 +2903,7 @@ def validate_performance_data(data: PerformanceCreate):
         data.additional_fee_net,
         data.postal_shipping_gross,
     ):
-        normalized_amount = Decimal(str(amount))
-        if not normalized_amount.is_finite() or normalized_amount < 0:
+        if amount < 0:
             raise HTTPException(
                 status_code=400,
                 detail="Kosten dürfen nicht negativ sein.",
@@ -3244,14 +2926,10 @@ def validate_performance_data(data: PerformanceCreate):
             detail="Bitte die sonstigen Kosten benennen.",
         )
 
-    try:
-        service_fee_percent = normalize_performance_service_percentage(
-            data.service_fee_percent,
-        )
-    except (ArithmeticError, ValueError):
+    if Decimal(str(data.service_fee_percent)) != SERVICE_FEE_PERCENT:
         raise HTTPException(
             status_code=400,
-            detail="Die Servicepauschale muss zwischen 0 % und 100 % liegen.",
+            detail="Die Servicepauschale beträgt fest 3 %.",
         )
 
     if len(data.price_items) > 20:
@@ -3284,8 +2962,7 @@ def validate_performance_data(data: PerformanceCreate):
                     detail="Jede Preisposition benötigt eine Bezeichnung.",
                 )
 
-            normalized_item_gross = Decimal(str(item.gross_amount))
-            if not normalized_item_gross.is_finite() or normalized_item_gross < 0:
+            if item.gross_amount < 0:
                 raise HTTPException(
                     status_code=400,
                     detail="Preise dürfen nicht negativ sein.",
@@ -3318,30 +2995,6 @@ def validate_performance_data(data: PerformanceCreate):
                     status_code=400,
                     detail="Bei externen Positionen muss der Anbieter angegeben werden.",
                 )
-
-        ticket_component_total = sum(
-            (
-                Decimal(str(item.gross_amount))
-                for item in data.price_items
-                if item.category in {"ticket", "food", "drink"}
-            ),
-            Decimal("0"),
-        ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-        declared_ticket_total = declared_ticket_total.quantize(
-            Decimal("0.01"),
-            rounding=ROUND_HALF_UP,
-        )
-        if ticket_component_total != declared_ticket_total:
-            difference = abs(ticket_component_total - declared_ticket_total)
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    "Die Ticketaufteilung stimmt nicht: Eintrittskarte + Essen/Menü "
-                    f"+ Getränke ergeben {ticket_component_total:.2f} EUR, der "
-                    f"Gesamtpreis Ticket ist aber {declared_ticket_total:.2f} EUR "
-                    f"(Differenz {difference:.2f} EUR)."
-                ),
-            )
 
     if not 1 <= data.max_tickets_per_order <= 50:
         raise HTTPException(
@@ -4408,107 +4061,51 @@ def validate_public_sale(performance):
 def checkout_price_items(performance, quantity: int, delivery_method: str):
     breakdown = performance["price_breakdown"]
     configured_items = list(breakdown.get("items") or [])
-    result = []
 
-    if configured_items:
-        ticket_components = [
-            item
-            for item in configured_items
-            if item.get("category") in {"ticket", "food", "drink"}
-        ]
-        ticket_total_gross = Decimal(
-            str(breakdown.get("ticket_total_gross", 0) or 0)
-        ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-        if ticket_total_gross > 0:
-            result.append(
-                {
-                    "name": "Gesamtpreis Ticket",
-                    "quantity": quantity,
-                    "gross_each": float(ticket_total_gross),
-                    "gross_total": float(
-                        (ticket_total_gross * quantity).quantize(
-                            Decimal("0.01"),
-                            rounding=ROUND_HALF_UP,
-                        )
-                    ),
-                    # Der Gesamtpreis besitzt wegen seiner Bestandteile keinen
-                    # einzelnen MwSt.-Satz. Die Steuerdaten bleiben im Snapshot.
-                    "vat_rate": 0,
-                    "kind": "ticket",
-                    "tax_components": [
-                        {
-                            "category": item.get("category"),
-                            "name": item.get("name") or "Ticketbestandteil",
-                            "gross_each": float(item.get("gross", 0) or 0),
-                            "vat_rate": int(item.get("vat_rate", 0) or 0),
-                        }
-                        for item in ticket_components
-                    ],
-                }
-            )
-
-        for item in configured_items:
-            if item.get("category") != "other":
-                continue
-            gross_each = Decimal(str(item.get("gross", 0) or 0)).quantize(
-                Decimal("0.01"),
-                rounding=ROUND_HALF_UP,
-            )
-            if gross_each <= 0:
-                continue
-            result.append(
-                {
-                    "name": item.get("name") or "Sonstige Kosten",
-                    "quantity": quantity,
-                    "gross_each": float(gross_each),
-                    "gross_total": float(
-                        (gross_each * quantity).quantize(
-                            Decimal("0.01"),
-                            rounding=ROUND_HALF_UP,
-                        )
-                    ),
-                    "vat_rate": int(item.get("vat_rate", 0) or 0),
-                    "kind": "additional",
-                }
-            )
-    else:
+    if not configured_items:
         ticket = breakdown.get("ticket") or {}
         if Decimal(str(ticket.get("gross", 0) or 0)) > 0:
-            gross_each = Decimal(str(ticket.get("gross", 0) or 0))
-            result.append(
+            configured_items.append(
                 {
                     "name": "Eintrittskarte",
-                    "quantity": quantity,
-                    "gross_each": float(gross_each),
-                    "gross_total": float(
-                        (gross_each * quantity).quantize(
-                            Decimal("0.01"),
-                            rounding=ROUND_HALF_UP,
-                        )
-                    ),
-                    "vat_rate": int(ticket.get("vat_rate", 0) or 0),
-                    "kind": "ticket",
+                    "gross": ticket.get("gross", 0),
+                    "vat_rate": ticket.get("vat_rate", 0),
                 }
             )
 
         additional = breakdown.get("additional") or {}
         if Decimal(str(additional.get("gross", 0) or 0)) > 0:
-            gross_each = Decimal(str(additional.get("gross", 0) or 0))
-            result.append(
+            configured_items.append(
                 {
                     "name": additional.get("name") or "Sonstige Kosten",
-                    "quantity": quantity,
-                    "gross_each": float(gross_each),
-                    "gross_total": float(
-                        (gross_each * quantity).quantize(
-                            Decimal("0.01"),
-                            rounding=ROUND_HALF_UP,
-                        )
-                    ),
-                    "vat_rate": int(additional.get("vat_rate", 0) or 0),
-                    "kind": "additional",
+                    "gross": additional.get("gross", 0),
+                    "vat_rate": additional.get("vat_rate", 0),
                 }
             )
+
+    configured_items.sort(
+        key=lambda item: Decimal(str(item.get("gross", 0) or 0)),
+        reverse=True,
+    )
+
+    result = []
+    for item in configured_items:
+        gross_each = Decimal(str(item.get("gross", 0) or 0))
+        result.append(
+            {
+                "name": item.get("name") or "Preisposition",
+                "quantity": quantity,
+                "gross_each": float(gross_each),
+                "gross_total": float(
+                    (gross_each * quantity).quantize(
+                        Decimal("0.01"),
+                        rounding=ROUND_HALF_UP,
+                    )
+                ),
+                "vat_rate": int(item.get("vat_rate", 0) or 0),
+                "kind": "event",
+            }
+        )
 
     if delivery_method == "postal":
         shipping_gross = Decimal(
@@ -4534,10 +4131,7 @@ def checkout_price_items(performance, quantity: int, delivery_method: str):
         (Decimal(str(item["gross_total"])) for item in result),
         Decimal("0"),
     )
-    service_total = calculate_service_gross(
-        service_base_gross,
-        performance["service_fee_percent"],
-    )
+    service_total = calculate_service_gross(service_base_gross)
     if service_total > 0:
         result.append(
             {
@@ -4979,11 +4573,7 @@ def stripe_checkout_line_items(items):
         if amount <= 0:
             continue
         product_data = {"name": str(item["name"])[:127]}
-        if item.get("tax_components"):
-            product_data["description"] = (
-                "Bruttopreis mit steuerlicher Aufteilung gemäß Rechnung"
-            )
-        elif item.get("kind") != "service":
+        if item.get("kind") != "service":
             product_data["description"] = (
                 f"Bruttopreis inklusive "
                 f"{int(item['vat_rate'])} % MwSt."
@@ -5471,40 +5061,16 @@ def fulfill_public_checkout_session(session, request: Request):
                     )
 
             customer_id = upsert_public_checkout_customer(cur, order)
-            ticket_total = sum(
+            event_total = sum(
                 (
                     Decimal(str(item.get("gross_total", 0) or 0))
                     for item in order["items"]
-                    if item.get("kind") in {"event", "ticket"}
+                    if item.get("kind") == "event"
                 ),
                 Decimal("0"),
             )
             ticket_price = (
-                ticket_total / Decimal(order["quantity"])
-            ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-            additional_items = [
-                {
-                    "category": "other",
-                    "name": str(item.get("name") or "Sonstige Kosten").strip(),
-                    "gross_amount": float(
-                        Decimal(str(item.get("gross_each", 0) or 0)).quantize(
-                            Decimal("0.01"),
-                            rounding=ROUND_HALF_UP,
-                        )
-                    ),
-                    "vat_rate": int(item.get("vat_rate", 0) or 0),
-                }
-                for item in order["items"]
-                if item.get("kind") == "additional"
-                and Decimal(str(item.get("gross_each", 0) or 0)) > 0
-            ]
-            additional_fee = sum(
-                (
-                    Decimal(str(item.get("gross_total", 0) or 0))
-                    for item in order["items"]
-                    if item.get("kind") == "additional"
-                ),
-                Decimal("0"),
+                event_total / Decimal(order["quantity"])
             ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
             service_fee = sum(
                 (
@@ -5538,8 +5104,6 @@ def fulfill_public_checkout_session(session, request: Request):
                     performance_id,
                     ticket_count,
                     ticket_price,
-                    additional_fee,
-                    additional_items,
                     service_fee,
                     status,
                     free_seating,
@@ -5549,7 +5113,7 @@ def fulfill_public_checkout_session(session, request: Request):
                     stripe_payment_intent_id
                 )
                 VALUES (
-                    %s, %s, %s, %s, %s, %s, %s, %s, 'bezahlt',
+                    %s, %s, %s, %s, %s, %s, 'bezahlt',
                     %s, %s, %s, %s, %s
                 )
                 RETURNING id
@@ -5560,8 +5124,6 @@ def fulfill_public_checkout_session(session, request: Request):
                     order["performance_id"],
                     order["quantity"],
                     ticket_price,
-                    additional_fee,
-                    Jsonb(additional_items),
                     service_fee,
                     performance["seating_mode"] == "free",
                     order["delivery_method"],
@@ -5914,7 +5476,6 @@ def create_performance(
     if serialized_price_items:
         price_breakdown = calculate_structured_price_breakdown(
             serialized_price_items,
-            data.service_fee_percent,
         )
     else:
         price_breakdown = calculate_price_breakdown(
@@ -5924,7 +5485,6 @@ def create_performance(
             data.additional_fee_name,
             data.additional_fee_net,
             data.additional_fee_vat_rate,
-            data.service_fee_percent,
         )
 
     with psycopg.connect(DB_CONFIG) as conn:
@@ -5987,21 +5547,17 @@ def create_performance(
                     data.publication_status,
                     data.seating_mode,
                     data.capacity,
-                    price_breakdown["ticket_total_gross"],
+                    price_breakdown["total_gross"],
                     data.max_tickets_per_order,
                     round(data.ticket_price_net, 2),
                     data.ticket_vat_rate,
-                    round(price_breakdown["service"]["net"], 2),
+                    round(data.service_fee_net, 2),
                     SERVICE_VAT_RATE,
                     data.additional_fee_name.strip(),
                     round(data.additional_fee_net, 2),
                     data.additional_fee_vat_rate,
                     Jsonb(serialized_price_items),
-                    float(
-                        normalize_performance_service_percentage(
-                            data.service_fee_percent,
-                        )
-                    ),
+                    float(SERVICE_FEE_PERCENT),
                     round(data.postal_shipping_gross, 2),
                     data.postal_shipping_vat_rate,
                 ),
@@ -6068,7 +5624,6 @@ def update_performance(
     if serialized_price_items:
         price_breakdown = calculate_structured_price_breakdown(
             serialized_price_items,
-            data.service_fee_percent,
         )
     else:
         price_breakdown = calculate_price_breakdown(
@@ -6078,7 +5633,6 @@ def update_performance(
             data.additional_fee_name,
             data.additional_fee_net,
             data.additional_fee_vat_rate,
-            data.service_fee_percent,
         )
 
     with psycopg.connect(DB_CONFIG) as conn:
@@ -6159,21 +5713,17 @@ def update_performance(
                     data.publication_status,
                     data.seating_mode,
                     data.capacity,
-                    price_breakdown["ticket_total_gross"],
+                    price_breakdown["total_gross"],
                     data.max_tickets_per_order,
                     round(data.ticket_price_net, 2),
                     data.ticket_vat_rate,
-                    round(price_breakdown["service"]["net"], 2),
+                    round(data.service_fee_net, 2),
                     SERVICE_VAT_RATE,
                     data.additional_fee_name.strip(),
                     round(data.additional_fee_net, 2),
                     data.additional_fee_vat_rate,
                     Jsonb(serialized_price_items),
-                    float(
-                        normalize_performance_service_percentage(
-                            data.service_fee_percent,
-                        )
-                    ),
+                    float(SERVICE_FEE_PERCENT),
                     round(data.postal_shipping_gross, 2),
                     data.postal_shipping_vat_rate,
                     public_slug,
@@ -6374,9 +5924,6 @@ def get_bookings(
                         b.ticket_count,
                         b.ticket_price,
                         b.service_fee,
-                        b.additional_fee,
-                        b.additional_items,
-                        b.shipping_fee,
                         b.status,
                         b.delivery_method,
                         b.stripe_checkout_session_id IS NOT NULL
@@ -6406,9 +5953,6 @@ def get_bookings(
                         b.ticket_count,
                         b.ticket_price,
                         b.service_fee,
-                        b.additional_fee,
-                        b.additional_items,
-                        b.shipping_fee,
                         b.status,
                         b.delivery_method,
                         b.stripe_checkout_session_id IS NOT NULL
@@ -6444,12 +5988,9 @@ def get_bookings(
             "ticket_count": row[12],
             "ticket_price": float(row[13]),
             "service_fee": float(row[14]),
-            "additional_fee": float(row[15] or 0),
-            "additional_items": list(row[16] or []),
-            "shipping_fee": float(row[17] or 0),
-            "status": row[18],
-            "delivery_method": row[19] or "email",
-            "online_paid": bool(row[20]),
+            "status": row[15],
+            "delivery_method": row[16] or "email",
+            "online_paid": bool(row[17]),
         }
         for row in rows
     ]
@@ -6519,12 +6060,7 @@ def create_booking(
                     detail="Vorstellung nicht gefunden.",
                 )
 
-            (
-                frozen_ticket_price,
-                frozen_additional_fee,
-                frozen_additional_items,
-                frozen_service_fee,
-            ) = (
+            frozen_ticket_price, frozen_service_fee = (
                 calculate_booking_price_snapshot(
                     performance,
                     data.ticket_count,
@@ -6645,14 +6181,10 @@ def create_booking(
                     performance_id,
                     ticket_count,
                     ticket_price,
-                    additional_fee,
-                    additional_items,
                     service_fee,
                     status
                 )
                 VALUES (
-                    %s,
-                    %s,
                     %s,
                     %s,
                     %s,
@@ -6669,8 +6201,6 @@ def create_booking(
                     data.performance_id,
                     data.ticket_count,
                     frozen_ticket_price,
-                    frozen_additional_fee,
-                    Jsonb(frozen_additional_items),
                     frozen_service_fee,
                 ),
             )
@@ -6702,7 +6232,6 @@ def create_booking(
                     f"booking_number={booking_number}; "
                     f"ticket_count={data.ticket_count}; "
                     f"ticket_price={frozen_ticket_price}; "
-                    f"additional_fee={frozen_additional_fee}; "
                     f"service_fee={frozen_service_fee}; "
                     f"status=reserviert"
                 ),
@@ -6718,8 +6247,6 @@ def create_booking(
             data.performance_id
         ),
         "ticket_price": frozen_ticket_price,
-        "additional_fee": frozen_additional_fee,
-        "additional_items": frozen_additional_items,
         "service_fee": frozen_service_fee,
     }
 
@@ -6780,9 +6307,7 @@ def update_booking(
                     b.booking_number,
                     b.ticket_price,
                     b.service_fee,
-                    b.ticket_count,
-                    b.additional_fee,
-                    b.additional_items
+                    b.ticket_count
                 FROM bookings b
                 WHERE b.id = %s
                 """,
@@ -6803,8 +6328,6 @@ def update_booking(
             old_ticket_price = float(existing[3] or 0)
             old_service_fee = float(existing[4] or 0)
             old_ticket_count = int(existing[5] or 0)
-            old_additional_fee = float(existing[6] or 0)
-            old_additional_items = list(existing[7] or [])
 
             # Neue Vorstellung muss existieren.
             cur.execute(
@@ -6825,12 +6348,7 @@ def update_booking(
                 )
 
             if data.performance_id != old_performance_id:
-                (
-                    frozen_ticket_price,
-                    frozen_additional_fee,
-                    frozen_additional_items,
-                    frozen_service_fee,
-                ) = (
+                frozen_ticket_price, frozen_service_fee = (
                     calculate_booking_price_snapshot(
                         selected_performance,
                         data.ticket_count,
@@ -6838,26 +6356,12 @@ def update_booking(
                 )
             else:
                 frozen_ticket_price = old_ticket_price
-                frozen_additional_items = old_additional_items
                 if data.ticket_count == old_ticket_count:
-                    frozen_additional_fee = old_additional_fee
                     frozen_service_fee = old_service_fee
                 else:
-                    additional_unit = (
-                        Decimal(str(old_additional_fee))
-                        / Decimal(max(1, old_ticket_count))
-                    )
-                    frozen_additional_fee = float(
-                        (additional_unit * Decimal(data.ticket_count)).quantize(
-                            Decimal("0.01"),
-                            rounding=ROUND_HALF_UP,
-                        )
-                    )
                     frozen_service_fee = float(calculate_service_gross(
                         Decimal(str(frozen_ticket_price))
                         * Decimal(data.ticket_count)
-                        + Decimal(str(frozen_additional_fee)),
-                        selected_performance[27],
                     ))
 
             # Bei Umbuchung gehören die alten Sitzplätze nicht mehr
@@ -6908,8 +6412,6 @@ def update_booking(
                     performance_id = %s,
                     ticket_count = %s,
                     ticket_price = %s,
-                    additional_fee = %s,
-                    additional_items = %s,
                     service_fee = %s,
                     notes = %s,
                     free_seating = %s
@@ -6919,8 +6421,6 @@ def update_booking(
                     data.performance_id,
                     data.ticket_count,
                     frozen_ticket_price,
-                    frozen_additional_fee,
-                    Jsonb(frozen_additional_items),
                     frozen_service_fee,
                     data.notes.strip(),
                     data.free_seating,
@@ -6950,7 +6450,6 @@ def update_booking(
                     f"performance_id={data.performance_id}; "
                     f"ticket_count={data.ticket_count}; "
                     f"ticket_price={frozen_ticket_price}; "
-                    f"additional_fee={frozen_additional_fee}; "
                     f"service_fee={frozen_service_fee}"
                 ),
             )
@@ -6974,8 +6473,6 @@ def update_booking(
         "booking_id": booking_id,
         "performance_id": saved_performance_id,
         "ticket_price": frozen_ticket_price,
-        "additional_fee": frozen_additional_fee,
-        "additional_items": frozen_additional_items,
         "service_fee": frozen_service_fee,
     }
 
@@ -8053,7 +7550,6 @@ class InvoiceLineCreate(BaseModel):
     quantity: float
     unit_gross: float
     tax_rate: float
-    source: str = ""
 
 
 class InvoiceCreateV2(BaseModel):
@@ -8722,7 +8218,6 @@ def derive_invoice_lines(template_data: dict, booking, default_tax_rate: float):
                         if source in {"service", "service_percent"}
                         else float(item.get("tax_rate", default_tax_rate) or 0)
                     ),
-                    source=source,
                 ),
             )
         )
@@ -8733,99 +8228,6 @@ def derive_invoice_lines(template_data: dict, booking, default_tax_rate: float):
         )
     )
     return [line for _, line in result]
-
-
-def expand_invoice_ticket_components(items, price_items):
-    """
-    Ersetzt genau die automatisch gekennzeichnete Ticketzeile durch ihre
-    steuerlichen Bestandteile. Der Rechnungsbetrag bleibt centgenau gleich;
-    frei angelegte oder abweichend bepreiste Positionen werden nicht verändert.
-    """
-    components = [
-        item
-        for item in (price_items or [])
-        if isinstance(item, dict)
-        and item.get("category") in {"ticket", "food", "drink"}
-        and Decimal(str(item.get("gross_amount", 0) or 0)) > 0
-    ]
-    if not components:
-        return items
-
-    component_total = sum(
-        (Decimal(str(item.get("gross_amount", 0) or 0)) for item in components),
-        Decimal("0"),
-    ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-    result = []
-    for line in items:
-        line_unit_gross = Decimal(str(line.unit_gross or 0)).quantize(
-            Decimal("0.01"),
-            rounding=ROUND_HALF_UP,
-        )
-        if line.source != "tickets" or line_unit_gross != component_total:
-            result.append(line)
-            continue
-
-        for component in components:
-            result.append(
-                InvoiceLineCreate(
-                    description=str(
-                        component.get("name") or "Ticketbestandteil"
-                    )[:500],
-                    quantity=line.quantity,
-                    unit_gross=float(
-                        Decimal(str(component.get("gross_amount", 0) or 0)).quantize(
-                            Decimal("0.01"),
-                            rounding=ROUND_HALF_UP,
-                        )
-                    ),
-                    tax_rate=float(component.get("vat_rate", 0) or 0),
-                    source="ticket_component",
-                )
-            )
-    return result
-
-
-def append_booking_additional_costs(items, additional_items, ticket_count):
-    """Setzt eingefrorene Zusatzkosten als eigene Rechnungszeilen vor Service."""
-    result = list(items)
-    for item in additional_items or []:
-        if not isinstance(item, dict):
-            continue
-        description = str(item.get("name") or "Sonstige Kosten").strip()[:500]
-        unit_gross = Decimal(
-            str(item.get("gross_amount", 0) or 0)
-        ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-        quantity = Decimal(str(ticket_count or 0))
-        if unit_gross <= 0 or quantity <= 0:
-            continue
-        duplicate = any(
-            line.description.strip() == description
-            and Decimal(str(line.quantity)) == quantity
-            and Decimal(str(line.unit_gross or 0)).quantize(
-                Decimal("0.01"),
-                rounding=ROUND_HALF_UP,
-            ) == unit_gross
-            for line in result
-        )
-        if duplicate:
-            continue
-        additional_line = InvoiceLineCreate(
-            description=description,
-            quantity=float(quantity),
-            unit_gross=float(unit_gross),
-            tax_rate=float(item.get("vat_rate", 0) or 0),
-            source="additional",
-        )
-        service_index = next(
-            (
-                index
-                for index, line in enumerate(result)
-                if line.source in {"service", "service_percent"}
-            ),
-            len(result),
-        )
-        result.insert(service_index, additional_line)
-    return result
 
 
 def enforce_invoice_service_fee(
@@ -8881,7 +8283,6 @@ def enforce_invoice_service_fee(
             quantity=1,
             unit_gross=float(service_gross),
             tax_rate=SERVICE_VAT_RATE,
-            source="service_percent",
         ),
     ]
 
@@ -9139,9 +8540,7 @@ def create_invoice_v2(data: InvoiceCreateV2, request: Request):
                     p.start_time,
                     p.venue_name,
                     p.id,
-                    p.price_items,
-                    p.service_fee_percent,
-                    b.additional_items
+                    p.price_items
                 FROM bookings b
                 JOIN customers c ON c.id = b.customer_id
                 JOIN performances p ON p.id = b.performance_id
@@ -9184,30 +8583,22 @@ def create_invoice_v2(data: InvoiceCreateV2, request: Request):
                 booking,
                 template["default_tax_rate"],
             )
-            requested_items = append_booking_additional_costs(
-                requested_items,
-                booking[21],
-                booking[4],
-            )
-            requested_items = expand_invoice_ticket_components(
-                requested_items,
-                booking[19],
-            )
             if not is_system_invoice:
-                event_service_percentage = (
-                    normalize_performance_service_percentage(booking[20])
-                )
                 template_service = invoice_template_service_settings(
                     template["template_data"]
                 )
                 effective_service_percentage = (
                     data.service_percentage
                     if actor_is_admin and data.service_percentage is not None
-                    else event_service_percentage
+                    else template_service["percentage"]
                 )
                 if template_service["enabled"]:
                     if actor_is_admin and data.service_gross_override is not None:
                         effective_service_amount = data.service_gross_override
+                    elif actor_is_admin and data.service_percentage is not None:
+                        effective_service_amount = None
+                    elif template_service["calculation"] == "amount":
+                        effective_service_amount = template_service["amount"]
                     else:
                         effective_service_amount = None
                     requested_items = enforce_invoice_service_fee(
@@ -9361,12 +8752,6 @@ def create_invoice_v2(data: InvoiceCreateV2, request: Request):
                 "event_title": booking[14],
                 "event_date": booking[15].isoformat() if booking[15] else None,
                 "event_time": booking[16].isoformat() if booking[16] else None,
-                "price_items": list(booking[19] or [])
-                if isinstance(booking[19], list)
-                else [],
-                "service_fee_percent": float(
-                    normalize_performance_service_percentage(booking[20])
-                ),
             }
             invoice_date = data.invoice_date or datetime.now(ZoneInfo("Europe/Berlin")).date()
             unique_rates = {float(item["tax_rate"]) for item in calculated_items}
@@ -9543,27 +8928,6 @@ def checkout_items_to_invoice_lines(items):
         if not isinstance(item, dict):
             continue
         quantity = Decimal(str(item.get("quantity", 0) or 0))
-        tax_components = item.get("tax_components")
-        if isinstance(tax_components, list) and tax_components:
-            for component in tax_components:
-                if not isinstance(component, dict):
-                    continue
-                unit_gross = Decimal(
-                    str(component.get("gross_each", 0) or 0)
-                )
-                if quantity <= 0 or unit_gross < 0:
-                    continue
-                lines.append(
-                    InvoiceLineCreate(
-                        description=str(
-                            component.get("name") or "Ticketbestandteil"
-                        )[:500],
-                        quantity=float(quantity),
-                        unit_gross=float(unit_gross),
-                        tax_rate=float(component.get("vat_rate", 0) or 0),
-                    )
-                )
-            continue
         unit_gross = Decimal(str(item.get("gross_each", 0) or 0))
         if quantity <= 0 or unit_gross < 0:
             continue
@@ -9718,8 +9082,7 @@ def load_invoice_email_context(invoice_id: int):
                     p.performance_date,
                     p.start_time,
                     p.venue_name,
-                    p.id,
-                    p.price_items
+                    p.id
                 FROM invoices i
                 JOIN bookings b ON b.id = i.booking_id
                 JOIN customers c ON c.id = b.customer_id
@@ -9788,9 +9151,7 @@ def load_invoice_email_context(invoice_id: int):
         "event_time": row[21],
         "venue_text": str((row[8] or {}).get("venue_text") or row[22] or "").strip(),
         "performance_id": int(row[23]),
-        "price_items": list(
-            (row[8] or {}).get("price_items") or row[24] or []
-        ),
+        "price_items": list(row[24] or []) if isinstance(row[24], list) else [],
         "items": items,
     }
 
@@ -10107,20 +9468,20 @@ def invoice_pdf_bytes(context):
     )
     story.extend([item_table, Spacer(1, 3 * mm)])
 
-    total_tax_amount = sum(
-        (
-            Decimal(str(tax_group.get("tax_amount", 0) or 0))
-            for tax_group in context["tax_breakdown"]
-            if isinstance(tax_group, dict)
-        ),
-        Decimal("0"),
-    )
-    totals = [
-        [
-            Paragraph("Enthaltene MwSt. gesamt", styles["InvoiceSmall"]),
-            Paragraph(euro_text(total_tax_amount), styles["InvoiceRight"]),
-        ]
-    ]
+    totals = []
+    for tax_group in context["tax_breakdown"]:
+        totals.append(
+            [
+                Paragraph(
+                    f"Enthaltene MwSt. {float(tax_group.get('tax_rate', 0)):g} %",
+                    styles["InvoiceSmall"],
+                ),
+                Paragraph(
+                    euro_text(tax_group.get("tax_amount", 0)),
+                    styles["InvoiceRight"],
+                ),
+            ]
+        )
     totals.append(
         [
             Paragraph("<b>Gesamtbetrag</b>", styles["Normal"]),
@@ -10372,55 +9733,6 @@ def load_email_template_settings():
     return normalize_email_template_settings(row[0] if row else None)
 
 
-def performance_email_template_summary(performance_id: int):
-    """Lädt die Mailvorlage einer Vorstellung oder den allgemeinen Standard."""
-    with psycopg.connect(DB_CONFIG) as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT id, title, performance_date, start_time, venue_name
-                FROM performances
-                WHERE id = %s
-                LIMIT 1
-                """,
-                (performance_id,),
-            )
-            performance = cur.fetchone()
-            if not performance:
-                raise HTTPException(status_code=404, detail="Vorstellung nicht gefunden.")
-            cur.execute(
-                """
-                SELECT settings, updated_at, updated_by
-                FROM email_event_templates
-                WHERE performance_id = %s
-                LIMIT 1
-                """,
-                (performance_id,),
-            )
-            row = cur.fetchone()
-
-    default_settings = load_email_template_settings()
-    return {
-        "performance_id": int(performance[0]),
-        "event_title": performance[1] or "Veranstaltung",
-        "event_date": performance[2].isoformat() if performance[2] else None,
-        "event_time": performance[3].isoformat() if performance[3] else None,
-        "venue_name": performance[4] or "",
-        "settings": normalize_email_template_settings(
-            row[0] if row else default_settings
-        ),
-        "is_event_specific": bool(row),
-        "updated_at": row[1].isoformat() if row and row[1] else None,
-        "updated_by": str(row[2] or "") if row else "",
-    }
-
-
-def load_email_event_template(performance_id):
-    if not performance_id:
-        return load_email_template_settings()
-    return performance_email_template_summary(int(performance_id))["settings"]
-
-
 def email_template_context(context):
     event_date = context.get("event_date")
     event_time = context.get("event_time")
@@ -10568,120 +9880,6 @@ def reset_email_template_settings(request: Request):
     return {"success": True, "settings": settings}
 
 
-@app.get("/api/admin/email-event-templates/{performance_id}")
-def get_email_event_template(performance_id: int, request: Request):
-    require_admin(request)
-    summary = performance_email_template_summary(performance_id)
-    return {
-        **summary["settings"],
-        "performance_id": summary["performance_id"],
-        "event_title": summary["event_title"],
-        "event_date": summary["event_date"],
-        "event_time": summary["event_time"],
-        "venue_name": summary["venue_name"],
-        "is_event_specific": summary["is_event_specific"],
-        "updated_at": summary["updated_at"],
-    }
-
-
-@app.put("/api/admin/email-event-templates/{performance_id}")
-def update_email_event_template(
-    performance_id: int,
-    data: EmailTemplateSettingsUpdate,
-    request: Request,
-):
-    require_admin(request)
-    actor_id, actor_name = get_actor(request)
-    settings = normalize_email_template_settings(data.model_dump())
-    for required_key in (
-        "sender_name",
-        "subject_template",
-        "header_label",
-        "success_heading",
-        "booking_heading",
-        "amount_label",
-    ):
-        if not settings[required_key]:
-            raise HTTPException(
-                status_code=400,
-                detail="Bitte alle Pflichtfelder der E-Mail-Vorlage ausfüllen.",
-            )
-    if "\r" in settings["sender_name"] or "\n" in settings["sender_name"]:
-        raise HTTPException(status_code=400, detail="Der Absendername ist ungültig.")
-    if "\r" in settings["subject_template"] or "\n" in settings["subject_template"]:
-        raise HTTPException(status_code=400, detail="Der Betreff ist ungültig.")
-
-    current = performance_email_template_summary(performance_id)
-    with psycopg.connect(DB_CONFIG) as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                INSERT INTO email_event_templates (
-                    performance_id, settings, updated_at, updated_by
-                )
-                VALUES (%s, %s, NOW(), %s)
-                ON CONFLICT (performance_id) DO UPDATE
-                SET settings = EXCLUDED.settings,
-                    updated_at = NOW(),
-                    updated_by = EXCLUDED.updated_by
-                """,
-                (
-                    performance_id,
-                    Jsonb(settings),
-                    str(actor_id or actor_name or ""),
-                ),
-            )
-            write_activity(
-                cur,
-                request,
-                action="Event-E-Mail-Vorlage gespeichert",
-                entity_type="email_event_template",
-                entity_id=performance_id,
-                performance_id=performance_id,
-                description=(
-                    "Buchungs- und Rechnungs-Mail für "
-                    f"{current['event_title']} gespeichert"
-                ),
-                old_value=str(current["settings"]),
-                new_value=str(settings),
-            )
-        conn.commit()
-    return {
-        "success": True,
-        "settings": get_email_event_template(performance_id, request),
-    }
-
-
-@app.delete("/api/admin/email-event-templates/{performance_id}")
-def reset_email_event_template(performance_id: int, request: Request):
-    require_admin(request)
-    current = performance_email_template_summary(performance_id)
-    with psycopg.connect(DB_CONFIG) as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "DELETE FROM email_event_templates WHERE performance_id = %s",
-                (performance_id,),
-            )
-            write_activity(
-                cur,
-                request,
-                action="Event-E-Mail-Vorlage zurückgesetzt",
-                entity_type="email_event_template",
-                entity_id=performance_id,
-                performance_id=performance_id,
-                description=(
-                    "Buchungs- und Rechnungs-Mail für "
-                    f"{current['event_title']} auf Standard zurückgesetzt"
-                ),
-                old_value=str(current["settings"]),
-            )
-        conn.commit()
-    return {
-        "success": True,
-        "settings": get_email_event_template(performance_id, request),
-    }
-
-
 def booking_confirmation_html(context, settings=None):
     """Erstellt eine kompatible HTML-Mail mit ausschließlich eingebetteten Stilen."""
     settings = normalize_email_template_settings(
@@ -10821,7 +10019,7 @@ def booking_confirmation_html(context, settings=None):
 def send_offline_booking_confirmation_email(context):
     """Sendet im Offline-Ausbau immer nur an EMAIL_TEST_RECIPIENT."""
     validate_offline_mail_configuration()
-    settings = load_email_event_template(context.get("performance_id"))
+    settings = load_email_template_settings()
     from_address = EMAIL_FROM_ADDRESS or SMTP_USERNAME
     event_date = context["event_date"]
     date_text = (
@@ -12379,7 +11577,7 @@ def invoice_email_html(context, settings=None):
 
 def send_offline_invoice_email(context, pdf_data: bytes):
     validate_offline_mail_configuration()
-    settings = load_email_event_template(context.get("performance_id"))
+    settings = load_email_template_settings()
     from_address = EMAIL_FROM_ADDRESS or SMTP_USERNAME
     message = EmailMessage()
     message["Subject"] = f"Rechnung {context['invoice_number']} – {context['event_title']}"

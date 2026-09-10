@@ -1,0 +1,622 @@
+:root {
+  --checkin-pink: #cc0167;
+  --checkin-ink: #211d20;
+  --checkin-soft: #f6f2f4;
+  --checkin-border: #e4dbe0;
+}
+
+.checkin-shell {
+  min-height: 100vh;
+  background: #f4f2f3;
+  color: var(--checkin-ink);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.checkin-header {
+  min-height: 92px;
+  padding: 20px clamp(18px, 4vw, 48px);
+  background: #211d20;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  box-sizing: border-box;
+  border-top: 7px solid var(--checkin-pink);
+}
+
+.checkin-header h1 {
+  margin: 3px 0 2px;
+  font-size: clamp(26px, 4vw, 38px);
+  line-height: 1.05;
+}
+
+.checkin-header p {
+  margin: 5px 0 0;
+  color: #cfc6cb;
+  font-size: 14px;
+}
+
+.checkin-eyebrow {
+  color: #ff53aa;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1.8px;
+}
+
+.checkin-header-actions,
+.checkin-camera-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.checkin-main {
+  width: min(1240px, calc(100% - 28px));
+  margin: 0 auto;
+  padding: 24px 0 50px;
+}
+
+.checkin-event-card,
+.checkin-camera-card,
+.checkin-hall-card,
+.checkin-result {
+  background: #fff;
+  border: 1px solid var(--checkin-border);
+  border-radius: 18px;
+  box-shadow: 0 10px 30px rgba(34, 26, 31, 0.06);
+}
+
+.checkin-event-card {
+  padding: 20px;
+}
+
+.checkin-event-card label,
+.checkin-manual label {
+  display: block;
+  margin-bottom: 7px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: #62575d;
+}
+
+.checkin-event-card select,
+.checkin-manual input {
+  width: 100%;
+  min-height: 46px;
+  border: 1px solid #cfc5ca;
+  border-radius: 11px;
+  background: #fff;
+  color: #241f22;
+  padding: 10px 12px;
+  box-sizing: border-box;
+  font: inherit;
+}
+
+.checkin-event-card select:focus,
+.checkin-manual input:focus {
+  outline: 3px solid rgba(204, 1, 103, 0.13);
+  border-color: var(--checkin-pink);
+}
+
+.checkin-event-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin-top: 15px;
+  align-items: center;
+  color: #695e64;
+  font-size: 14px;
+}
+
+.checkin-event-meta strong {
+  color: #211d20;
+  font-size: 16px;
+}
+
+.checkin-stats,
+.checkin-hall-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 17px;
+}
+
+.checkin-stats > div,
+.checkin-hall-summary > div {
+  padding: 13px 15px;
+  border-radius: 12px;
+  background: var(--checkin-soft);
+  text-align: center;
+}
+
+.checkin-stats strong,
+.checkin-hall-summary strong {
+  display: block;
+  font-size: 24px;
+  color: var(--checkin-pink);
+}
+
+.checkin-stats span,
+.checkin-hall-summary span {
+  display: block;
+  margin-top: 2px;
+  color: #6d6268;
+  font-size: 12px;
+}
+
+.checkin-tabs {
+  display: flex;
+  gap: 8px;
+  margin: 18px 0;
+  padding: 5px;
+  background: #eae4e7;
+  border-radius: 13px;
+  width: fit-content;
+}
+
+.checkin-tabs button {
+  border: 0;
+  border-radius: 10px;
+  padding: 10px 18px;
+  background: transparent;
+  color: #5e5459;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.checkin-tabs button.active {
+  background: #fff;
+  color: var(--checkin-pink);
+  box-shadow: 0 2px 9px rgba(0, 0, 0, 0.08);
+}
+
+.checkin-scanner-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.28fr) minmax(320px, 0.72fr);
+  gap: 18px;
+  align-items: stretch;
+}
+
+.checkin-camera-card,
+.checkin-hall-card {
+  padding: 20px;
+}
+
+.checkin-section-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.checkin-section-heading h2 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.checkin-section-heading p {
+  margin: 5px 0 0;
+  color: #71666c;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.checkin-button {
+  border: 0;
+  border-radius: 10px;
+  min-height: 42px;
+  padding: 10px 15px;
+  font: inherit;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.checkin-button.primary {
+  background: var(--checkin-pink);
+  color: #fff;
+}
+
+.checkin-button.secondary {
+  background: #fff;
+  color: #332b2f;
+  border: 1px solid #cfc5ca;
+}
+
+.checkin-header .checkin-button.secondary {
+  background: #2c272a;
+  border-color: #51484d;
+  color: #fff;
+}
+
+.checkin-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.checkin-video-wrap {
+  position: relative;
+  min-height: 390px;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #171416;
+  display: grid;
+  place-items: center;
+}
+
+.checkin-video-wrap video {
+  width: 100%;
+  height: 100%;
+  min-height: 390px;
+  max-height: 520px;
+  object-fit: cover;
+  display: block;
+}
+
+.checkin-scan-frame {
+  position: absolute;
+  width: min(250px, 66%);
+  aspect-ratio: 1;
+  border: 3px solid rgba(255, 255, 255, 0.92);
+  border-radius: 22px;
+  box-shadow: 0 0 0 999px rgba(0, 0, 0, 0.22);
+  pointer-events: none;
+}
+
+.checkin-video-placeholder {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+  color: #fff;
+}
+
+.checkin-video-placeholder span {
+  width: 62px;
+  height: 62px;
+  border: 2px dashed #ff53aa;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  color: #ff53aa;
+  font-weight: 900;
+  letter-spacing: 1px;
+}
+
+.checkin-camera-message,
+.checkin-alert {
+  margin-top: 13px;
+  padding: 11px 13px;
+  border-radius: 10px;
+  background: #fff5d9;
+  color: #6a4b00;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.checkin-alert.error {
+  margin: 0 0 15px;
+  background: #ffe8ea;
+  color: #8a1521;
+  border: 1px solid #ffc7cd;
+}
+
+.checkin-manual {
+  margin-top: 17px;
+}
+
+.checkin-manual > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 9px;
+}
+
+.checkin-result-column {
+  min-height: 100%;
+}
+
+.checkin-result {
+  min-height: 100%;
+  padding: 28px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  border-top: 8px solid var(--checkin-pink);
+}
+
+.checkin-result.empty {
+  align-items: center;
+  text-align: center;
+  color: #6c6167;
+  border-top-color: #cfc5ca;
+}
+
+.checkin-result.checked_in {
+  border-top-color: #16864b;
+  background: #f5fff9;
+}
+
+.checkin-result.already_checked_in {
+  border-top-color: #e39700;
+  background: #fffaf0;
+}
+
+.checkin-result.cancelled,
+.checkin-result.wrong_event {
+  border-top-color: #c62828;
+  background: #fff7f7;
+}
+
+.checkin-result-icon {
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  margin-bottom: 17px;
+  background: #ece6e9;
+  font-size: 40px;
+  font-weight: 800;
+}
+
+.checkin-result.checked_in .checkin-result-icon {
+  background: #16864b;
+  color: #fff;
+}
+
+.checkin-result.already_checked_in .checkin-result-icon {
+  background: #e39700;
+  color: #fff;
+}
+
+.checkin-result.cancelled .checkin-result-icon,
+.checkin-result.wrong_event .checkin-result-icon {
+  background: #c62828;
+  color: #fff;
+}
+
+.checkin-result-kicker {
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 1.4px;
+  color: #6a6065;
+}
+
+.checkin-result h2 {
+  margin: 7px 0 17px;
+  font-size: 24px;
+  line-height: 1.18;
+}
+
+.checkin-result dl {
+  margin: 0;
+  display: grid;
+  gap: 0;
+}
+
+.checkin-result dl > div {
+  display: grid;
+  grid-template-columns: 115px minmax(0, 1fr);
+  gap: 12px;
+  padding: 9px 0;
+  border-bottom: 1px solid #e5dde1;
+}
+
+.checkin-result dt {
+  color: #746970;
+  font-size: 13px;
+}
+
+.checkin-result dd {
+  margin: 0;
+  font-weight: 700;
+  word-break: break-word;
+}
+
+.checkin-button.result-next {
+  margin-top: 18px;
+  background: #211d20;
+  color: #fff;
+}
+
+.checkin-hall-summary {
+  margin: 0 0 15px;
+}
+
+.checkin-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px 16px;
+  padding: 12px 0 16px;
+  color: #645960;
+  font-size: 12px;
+}
+
+.checkin-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.checkin-legend i {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  border: 1px solid #c7bdc2;
+}
+
+.checkin-legend .free,
+.checkin-seat.free { background: #f0edef; }
+.checkin-legend .booked,
+.checkin-seat.booked { background: #ffe1ef; border-color: #cc4c8c; }
+.checkin-legend .checked,
+.checkin-seat.checked { background: #ccefd9; border-color: #268454; }
+.checkin-legend .cancelled,
+.checkin-seat.cancelled { background: #f2c9cd; border-color: #b83d49; text-decoration: line-through; }
+
+.checkin-stage {
+  width: min(520px, 82%);
+  margin: 4px auto 24px;
+  padding: 9px 16px;
+  border-radius: 0 0 70px 70px;
+  background: #2b2529;
+  color: #fff;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 2px;
+}
+
+.checkin-standard-hall {
+  overflow-x: auto;
+  padding: 14px;
+  border-radius: 14px;
+  background: #faf8f9;
+}
+
+.checkin-row {
+  min-width: 620px;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  margin: 7px 0;
+}
+
+.checkin-row > strong {
+  color: #7b6f75;
+  font-size: 12px;
+}
+
+.checkin-row > div {
+  display: flex;
+  justify-content: center;
+  flex-wrap: nowrap;
+  gap: 5px;
+}
+
+.checkin-seat {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid #c7bdc2;
+  border-radius: 8px 8px 5px 5px;
+  color: #312a2e;
+  font-size: 11px;
+  font-weight: 750;
+  cursor: help;
+}
+
+.checkin-table-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 13px;
+}
+
+.checkin-table {
+  padding: 13px;
+  border-radius: 14px;
+  background: #faf8f9;
+  border: 1px solid #e7dfe3;
+}
+
+.checkin-table h3 {
+  margin: 0 0 11px;
+  text-align: center;
+  font-size: 14px;
+}
+
+.checkin-table-seats {
+  display: grid;
+  grid-template-columns: repeat(5, 32px);
+  justify-content: center;
+  gap: 6px;
+}
+
+.checkin-loading,
+.checkin-loading-inline {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  color: #6f646a;
+  background: #f4f2f3;
+}
+
+.checkin-loading-inline {
+  min-height: 220px;
+}
+
+@media (max-width: 860px) {
+  .checkin-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .checkin-scanner-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .checkin-result {
+    min-height: 430px;
+  }
+
+  .checkin-video-wrap,
+  .checkin-video-wrap video {
+    min-height: 330px;
+  }
+}
+
+@media (max-width: 560px) {
+  .checkin-main {
+    width: min(100% - 18px, 1240px);
+    padding-top: 12px;
+  }
+
+  .checkin-header {
+    padding: 16px 14px;
+  }
+
+  .checkin-event-card,
+  .checkin-camera-card,
+  .checkin-hall-card,
+  .checkin-result {
+    border-radius: 14px;
+    padding: 15px;
+  }
+
+  .checkin-stats,
+  .checkin-hall-summary {
+    gap: 6px;
+  }
+
+  .checkin-stats strong,
+  .checkin-hall-summary strong {
+    font-size: 20px;
+  }
+
+  .checkin-section-heading {
+    flex-direction: column;
+  }
+
+  .checkin-manual > div {
+    grid-template-columns: 1fr;
+  }
+
+  .checkin-result dl > div {
+    grid-template-columns: 1fr;
+    gap: 3px;
+  }
+
+  .checkin-tabs {
+    width: 100%;
+  }
+
+  .checkin-tabs button {
+    flex: 1;
+  }
+}

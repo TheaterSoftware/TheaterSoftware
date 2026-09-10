@@ -18,9 +18,17 @@ type Performance = {
   price_from?: number;
   service_fee_percent?: number;
   price_breakdown?: {
+    ticket_total_gross?: number;
     subtotal_gross?: number;
+    additional_gross?: number;
     service_fee_percent?: number;
   };
+  price_items?: Array<{
+    category: "ticket" | "food" | "drink" | "other";
+    name: string;
+    gross_amount: number;
+    vat_rate: number;
+  }>;
   postal_shipping_gross?: number;
   postal_shipping_vat_rate?: number;
 };
@@ -42,6 +50,14 @@ type Booking = {
 ticket_count: number;
   ticket_price: number;
   service_fee: number;
+  additional_fee?: number;
+  additional_items?: Array<{
+    category: "other";
+    name: string;
+    gross_amount: number;
+    vat_rate: number;
+  }>;
+  shipping_fee?: number;
   status: string;
   delivery_method?: string;
   online_paid?: boolean;
@@ -67,11 +83,16 @@ function formatDate(value: string) {
 }
 
 function performanceTicketPrice(performance?: Performance) {
+  const ticketTotal = Number(performance?.price_breakdown?.ticket_total_gross);
+  if (Number.isFinite(ticketTotal) && ticketTotal >= 0) return ticketTotal;
   const subtotal = Number(performance?.price_breakdown?.subtotal_gross);
   if (Number.isFinite(subtotal) && subtotal >= 0) return subtotal;
-  const totalWithService = Number(performance?.price_from || 0);
-  const servicePercentage = performanceServicePercentage(performance);
-  return Math.round((totalWithService / (1 + servicePercentage / 100)) * 100) / 100;
+  return Math.round(Number(performance?.price_from || 0) * 100) / 100;
+}
+
+function performanceAdditionalPrice(performance?: Performance) {
+  const additional = Number(performance?.price_breakdown?.additional_gross);
+  return Number.isFinite(additional) && additional > 0 ? additional : 0;
 }
 
 function performanceServicePercentage(performance?: Performance) {
@@ -452,7 +473,7 @@ export default function BookingsPage({
     setServiceFee(
       performanceServiceFee(
         selectedPerformance,
-        frozenUnitPrice,
+        frozenUnitPrice + performanceAdditionalPrice(selectedPerformance),
         count,
       ).toFixed(2),
     );
@@ -869,7 +890,7 @@ export default function BookingsPage({
                 </label>
 
                 <label className="booking-form-wide">
-                  Preis je Ticket vor Service
+                  Ticketpreis je Ticket (ohne Zusatzkosten)
                   <input
                     type="number"
                     min="0"
@@ -877,7 +898,7 @@ export default function BookingsPage({
                     value={ticketPrice}
                     readOnly
                   />
-                  <small>Wird aus der Veranstaltung übernommen und mit der Buchung fest gespeichert.</small>
+                  <small>Sonstige Kosten werden getrennt gespeichert und erscheinen auf der Rechnung unter dem Ticket.</small>
                 </label>
 
                 <div className="booking-seat-choice-row">
@@ -1027,6 +1048,8 @@ export default function BookingsPage({
                 const total =
                   booking.ticket_count *
                     booking.ticket_price +
+                  Number(booking.additional_fee || 0) +
+                  Number(booking.shipping_fee || 0) +
                   booking.service_fee;
 
                 return (
@@ -1183,6 +1206,9 @@ export default function BookingsPage({
               time: performance.start_time,
               title: performance.title,
               venue_name: performance.venue_name,
+              service_fee_percent: performance.service_fee_percent,
+              price_breakdown: performance.price_breakdown,
+              price_items: performance.price_items,
               postal_shipping_gross: performance.postal_shipping_gross,
               postal_shipping_vat_rate: performance.postal_shipping_vat_rate,
             }),

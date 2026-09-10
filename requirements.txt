@@ -5,3 +5,4 @@ bcrypt
 python-multipart
 python-dotenv
 stripe
+reportlab==4.4.9

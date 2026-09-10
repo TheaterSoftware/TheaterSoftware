@@ -31,15 +31,44 @@ type Performance = {
   date?: string;
   time?: string;
   price_from?: number;
+  service_fee_percent?: number;
   price_breakdown?: {
+    ticket_total_gross?: number;
     subtotal_gross?: number;
+    additional_gross?: number;
+    service_fee_percent?: number;
   };
 };
 
 function performanceTicketPrice(performance?: Performance) {
+  const ticketTotal = Number(performance?.price_breakdown?.ticket_total_gross);
+  if (Number.isFinite(ticketTotal) && ticketTotal >= 0) return ticketTotal;
   const subtotal = Number(performance?.price_breakdown?.subtotal_gross);
   if (Number.isFinite(subtotal) && subtotal >= 0) return subtotal;
-  return Math.round((Number(performance?.price_from || 0) / 1.1) * 100) / 100;
+  return Math.round(Number(performance?.price_from || 0) * 100) / 100;
+}
+
+function performanceAdditionalPrice(performance?: Performance) {
+  const additional = Number(performance?.price_breakdown?.additional_gross);
+  return Number.isFinite(additional) && additional > 0 ? additional : 0;
+}
+
+function performanceServiceFee(
+  performance: Performance | undefined,
+  ticketPrice: number,
+  ticketCount: number,
+) {
+  const percentage = Number(
+    performance?.service_fee_percent
+      ?? performance?.price_breakdown?.service_fee_percent
+      ?? 0,
+  );
+  const normalizedPercentage = Number.isFinite(percentage)
+    ? Math.min(100, Math.max(0, percentage))
+    : 0;
+  return Math.round(
+    ticketPrice * Math.max(1, ticketCount) * normalizedPercentage,
+  ) / 100;
 }
 
 type Props = {
@@ -389,7 +418,13 @@ export default function BookingEditPanel({
                       const nextPerformance = performances.find((item) => item.id === nextPerformanceId);
                       const nextTicketPrice = performanceTicketPrice(nextPerformance);
                       setTicketPrice(nextTicketPrice);
-                      setServiceFee(Math.round(nextTicketPrice * ticketCount * 0.03 * 100) / 100);
+                      setServiceFee(
+                        performanceServiceFee(
+                          nextPerformance,
+                          nextTicketPrice + performanceAdditionalPrice(nextPerformance),
+                          ticketCount,
+                        ),
+                      );
                     }
 
                     if (
@@ -436,13 +471,22 @@ export default function BookingEditPanel({
                   onChange={(event) => {
                     const nextCount = Math.max(1, Math.round(Number(event.target.value) || 1));
                     setTicketCount(nextCount);
-                    setServiceFee(Math.round(ticketPrice * nextCount * 0.03 * 100) / 100);
+                    const selectedPerformance = performances.find(
+                      (item) => item.id === Number(selectedPerformanceId),
+                    );
+                    setServiceFee(
+                      performanceServiceFee(
+                        selectedPerformance,
+                        ticketPrice + performanceAdditionalPrice(selectedPerformance),
+                        nextCount,
+                      ),
+                    );
                   }}
                 />
               </label>
 
               <label>
-                Preis je Ticket vor Service
+                Ticketpreis je Ticket (ohne Zusatzkosten)
                 <input
                   name="ticket_price"
                   type="number"

@@ -195,7 +195,10 @@ export default function Performances({ onBack }: Props) {
   const [publicationStatus, setPublicationStatus] = useState<PublicationStatus>("draft");
   const [seatingMode, setSeatingMode] = useState<SeatingMode>("assigned");
   const [capacity, setCapacity] = useState("");
+  // Gesamtpreis, den der Kunde pro Ticket bezahlt.
   const [ticketPriceGross, setTicketPriceGross] = useState("0");
+  // Steuerlicher Bestandteil "Eintrittskarte" innerhalb dieses Gesamtpreises.
+  const [ticketAdmissionGross, setTicketAdmissionGross] = useState("0");
   const [ticketVatRate, setTicketVatRate] = useState(7);
   const [postalShippingGross, setPostalShippingGross] = useState("0");
   const [postalShippingVatRate, setPostalShippingVatRate] = useState(19);
@@ -217,24 +220,39 @@ export default function Performances({ onBack }: Props) {
   const [maxTicketsPerOrder, setMaxTicketsPerOrder] = useState("10");
   const [serviceFeePercent, setServiceFeePercent] = useState("3");
 
-  const ticketPrice = calculateGrossComponent(ticketPriceGross, ticketVatRate);
+  // WICHTIG: ticketPriceGross ist ausschließlich der komplette, für den Kunden
+  // sichtbare Ticket-Gesamtpreis. Eintritt, Essen und Getränke sind seine
+  // steuerlichen Bestandteile und werden NICHT zusätzlich berechnet.
+  const ticketTotalGross = Math.round((Number(ticketPriceGross) || 0) * 100) / 100;
+  const ticketAdmissionPrice = calculateGrossComponent(ticketAdmissionGross, ticketVatRate);
   const foodPrice = calculateGrossComponent(foodPriceGross, foodVatRate);
   const drinkPrice = calculateGrossComponent(drinkPriceGross, drinkVatRate);
+  const ticketComponentGross = Math.round(
+    (ticketAdmissionPrice.gross + foodPrice.gross + drinkPrice.gross) * 100,
+  ) / 100;
+  const ticketSplitDifference = Math.round((ticketComponentGross - ticketTotalGross) * 100) / 100;
+  const ticketSplitValid = Math.abs(ticketSplitDifference) < 0.01;
   const additionalPrice = calculateGrossComponent(additionalFeeGross, additionalFeeVatRate);
-  const subtotalGross = Math.round((ticketPrice.gross + foodPrice.gross + drinkPrice.gross + additionalPrice.gross) * 100) / 100;
+
+  // Nur Ticket-Gesamtpreis + echte Zusatzkosten bilden die Preisbasis.
+  // Essen/Getränke werden NICHT noch einmal addiert.
+  const subtotalGross = Math.round((ticketTotalGross + additionalPrice.gross) * 100) / 100;
   const normalizedServiceFeePercent = Math.max(0, Math.min(100, Number(serviceFeePercent) || 0));
   const serviceFeeGross = Math.round(subtotalGross * normalizedServiceFeePercent) / 100;
   const servicePrice = calculateGrossComponent(serviceFeeGross, 19);
   const postalShippingPrice = calculateGrossComponent(postalShippingGross, postalShippingVatRate);
-  const totalNet = ticketPrice.net + foodPrice.net + drinkPrice.net + additionalPrice.net + servicePrice.net;
-  const totalVat = ticketPrice.vat + foodPrice.vat + drinkPrice.vat + additionalPrice.vat + servicePrice.vat;
+
+  const ticketSplitNet = Math.round((ticketAdmissionPrice.net + foodPrice.net + drinkPrice.net) * 100) / 100;
+  const ticketSplitVat = Math.round((ticketAdmissionPrice.vat + foodPrice.vat + drinkPrice.vat) * 100) / 100;
   const totalGross = Math.round((subtotalGross + serviceFeeGross) * 100) / 100;
 
   const configuredPriceItems: PriceItem[] = [
     {
       category: "ticket",
       name: "Eintrittskarte",
-      gross_amount: ticketPrice.gross,
+      // In price_items wird der steuerliche Eintrittsbestandteil gespeichert.
+      // Gesamtpreis Ticket = Eintritt + Essen + Getränke.
+      gross_amount: ticketAdmissionPrice.gross,
       vat_rate: ticketVatRate,
       provider_type: "internal",
       provider_name: "",
@@ -317,6 +335,7 @@ export default function Performances({ onBack }: Props) {
     setSeatingMode("assigned");
     setCapacity("");
     setTicketPriceGross("0");
+    setTicketAdmissionGross("0");
     setTicketVatRate(7);
     setPostalShippingGross("0");
     setPostalShippingVatRate(19);
@@ -389,7 +408,11 @@ export default function Performances({ onBack }: Props) {
       ? Math.round(performance.additional_fee_net * (1 + legacyAdditionalRate / 100) * 100) / 100
       : 0;
 
-    setTicketPriceGross((ticketItem?.gross_amount ?? legacyTicketGross).toString());
+    const structuredTicketTotal = ticketItem
+      ? Math.round(((ticketItem.gross_amount || 0) + (foodItem?.gross_amount || 0) + (drinkItem?.gross_amount || 0)) * 100) / 100
+      : legacyTicketGross;
+    setTicketPriceGross(structuredTicketTotal.toString());
+    setTicketAdmissionGross((ticketItem?.gross_amount ?? legacyTicketGross).toString());
     setTicketVatRate(ticketItem?.vat_rate ?? legacyTicketRate);
     setPostalShippingGross((performance.postal_shipping_gross ?? 0).toString());
     setPostalShippingVatRate(performance.postal_shipping_vat_rate ?? 19);
@@ -452,6 +475,11 @@ export default function Performances({ onBack }: Props) {
     setError("");
     setSaving(true);
     try {
+      if (!ticketSplitValid) {
+        throw new Error(
+          `Die Ticketaufteilung stimmt nicht: Eintritt + Essen + Getränke ergeben ${formatMoney(ticketComponentGross)}, der Gesamtpreis Ticket ist aber ${formatMoney(ticketTotalGross)}. Differenz: ${formatMoney(Math.abs(ticketSplitDifference))}.`,
+        );
+      }
       const isEditing = editingId !== null;
       const response = await fetch(
         isEditing ? `/api/performances/${editingId}` : "/api/performances",
@@ -474,8 +502,10 @@ export default function Performances({ onBack }: Props) {
             publication_status: publicationStatus,
             seating_mode: seatingMode,
             capacity: seatingMode === "free" && capacity ? Number(capacity) : null,
-            price_from: totalGross,
-            ticket_price_net: ticketPrice.net,
+            // price_from ist ausschließlich der Ticketpreis. Zusatzkosten und
+            // Service werden getrennt gespeichert und auf der Rechnung addiert.
+            price_from: ticketTotalGross,
+            ticket_price_net: ticketAdmissionPrice.net,
             ticket_vat_rate: ticketVatRate,
             service_fee_net: servicePrice.net,
             service_vat_rate: 19,
@@ -777,18 +807,32 @@ export default function Performances({ onBack }: Props) {
                   <div className="pricing-editor-heading">
                     <div>
                       <strong>Preiszusammensetzung je Ticket</strong>
-                      <span>Bruttopreise eingeben – enthaltene MwSt. und Endpreis werden automatisch berechnet.</span>
+                      <span>Gesamtpreis Ticket ist der Kundenpreis. Eintrittskarte, Essen und Getränke sind darin enthalten und bilden nur die steuerliche Aufteilung.</span>
                     </div>
-                    <strong className="pricing-total">Endpreis {formatMoney(totalGross)}</strong>
+                    <strong className="pricing-total">Ticket gesamt {formatMoney(ticketTotalGross)}</strong>
+                  </div>
+
+                  <div className="pricing-row">
+                    <label className="field">
+                      <span>Gesamtpreis Ticket *</span>
+                      <input type="number" min="0" step="0.01" value={ticketPriceGross} onChange={(event) => setTicketPriceGross(event.target.value)} required />
+                      <small>Das ist der komplette Preis, den der Kunde für ein Ticket bezahlt.</small>
+                    </label>
+                    <div className="provider-badge internal">Kundenpreis</div>
+                    <div className="pricing-result">
+                      <span>Eintritt + Essen + Getränke müssen diesen Betrag ergeben.</span>
+                      <strong>{formatMoney(ticketTotalGross)}</strong>
+                    </div>
                   </div>
 
                   <div className="pricing-row">
                     <label className="field">
                       <span>Eintrittskarte brutto *</span>
-                      <input type="number" min="0" step="0.01" value={ticketPriceGross} onChange={(event) => setTicketPriceGross(event.target.value)} required />
+                      <input type="number" min="0" step="0.01" value={ticketAdmissionGross} onChange={(event) => setTicketAdmissionGross(event.target.value)} required />
+                      <small>Steuerlicher Eintrittsbestandteil innerhalb des Gesamtpreises.</small>
                     </label>
                     <label className="field">
-                      <span>MwSt. Ticket *</span>
+                      <span>MwSt. Eintrittskarte *</span>
                       <select value={ticketVatRate} onChange={(event) => setTicketVatRate(Number(event.target.value))}>
                         <option value={0}>0 %</option>
                         <option value={7}>7 %</option>
@@ -797,8 +841,8 @@ export default function Performances({ onBack }: Props) {
                     </label>
                     <div className="provider-badge internal">Interne Leistung</div>
                     <div className="pricing-result">
-                      <span>netto {formatMoney(ticketPrice.net)} · MwSt. {formatMoney(ticketPrice.vat)}</span>
-                      <strong>{formatMoney(ticketPrice.gross)}</strong>
+                      <span>netto {formatMoney(ticketAdmissionPrice.net)} · MwSt. {formatMoney(ticketAdmissionPrice.vat)}</span>
+                      <strong>{formatMoney(ticketAdmissionPrice.gross)}</strong>
                     </div>
                   </div>
 
@@ -869,12 +913,22 @@ export default function Performances({ onBack }: Props) {
                     </div>
                   </div>}
 
+                  {!ticketSplitValid && (
+                    <div className="error-message">
+                      Eintritt + Essen + Getränke ergeben {formatMoney(ticketComponentGross)}. Gesamtpreis Ticket ist {formatMoney(ticketTotalGross)}. Differenz: {formatMoney(Math.abs(ticketSplitDifference))}. Sonstige Kosten und Versand sind hier absichtlich nicht enthalten.
+                    </div>
+                  )}
+
                   <div className="pricing-summary">
-                    <span>Zwischensumme <strong>{formatMoney(subtotalGross)}</strong></span>
+                    <span>Eintrittskarte <strong>{formatMoney(ticketAdmissionPrice.gross)}</strong></span>
+                    <span>Essen / Menü (enthalten) <strong>{formatMoney(foodPrice.gross)}</strong></span>
+                    <span>Getränke (enthalten) <strong>{formatMoney(drinkPrice.gross)}</strong></span>
+                    <span><b>Summe Ticket</b> <strong>{formatMoney(ticketTotalGross)}</strong></span>
+                    <span>davon netto <strong>{formatMoney(ticketSplitNet)}</strong></span>
+                    <span>davon MwSt. <strong>{formatMoney(ticketSplitVat)}</strong></span>
+                    <span>Sonstige Kosten <strong>{formatMoney(additionalPrice.gross)}</strong></span>
                     <span>Servicepauschale <strong>{formatMoney(serviceFeeGross)}</strong></span>
-                    <span>Nettosumme <strong>{formatMoney(totalNet)}</strong></span>
-                    <span>MwSt. gesamt <strong>{formatMoney(totalVat)}</strong></span>
-                    <span>Endpreis je Ticket <strong>{formatMoney(totalGross)}</strong></span>
+                    <span>Rechnungsbetrag (Ticket + getrennte Zusatzkosten) <strong>{formatMoney(totalGross)}</strong></span>
                   </div>
 
                   <div className="pricing-row postal-shipping-row">

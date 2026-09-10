@@ -26,6 +26,14 @@ type Booking = {
   ticket_count: number;
   ticket_price: number;
   service_fee: number;
+  additional_fee?: number;
+  additional_items?: Array<{
+    category: "other";
+    name: string;
+    gross_amount: number;
+    vat_rate: number;
+  }>;
+  shipping_fee?: number;
   status: string;
   localOnly: boolean;
   performanceId: number;
@@ -55,15 +63,48 @@ type Performance = {
   title: string;
   hall_plan_type: "hall_1" | "hall_2";
   price_from?: number;
+  service_fee_percent?: number;
   price_breakdown?: {
+    ticket_total_gross?: number;
     subtotal_gross?: number;
+    additional_gross?: number;
+    service_fee_percent?: number;
   };
 };
 
 function performanceTicketPrice(performance?: Performance | null) {
+  const ticketTotal = Number(performance?.price_breakdown?.ticket_total_gross);
+  if (Number.isFinite(ticketTotal) && ticketTotal >= 0) return ticketTotal;
   const subtotal = Number(performance?.price_breakdown?.subtotal_gross);
   if (Number.isFinite(subtotal) && subtotal >= 0) return subtotal;
-  return Math.round((Number(performance?.price_from || 0) / 1.1) * 100) / 100;
+  return Math.round(Number(performance?.price_from || 0) * 100) / 100;
+}
+
+function performanceAdditionalPrice(performance?: Performance | null) {
+  const additional = Number(performance?.price_breakdown?.additional_gross);
+  return Number.isFinite(additional) && additional > 0 ? additional : 0;
+}
+
+function performanceServicePercentage(performance?: Performance | null) {
+  const percentage = Number(
+    performance?.service_fee_percent
+      ?? performance?.price_breakdown?.service_fee_percent
+      ?? 0,
+  );
+  if (!Number.isFinite(percentage)) return 0;
+  return Math.min(100, Math.max(0, percentage));
+}
+
+function performanceServiceFee(
+  performance: Performance | null | undefined,
+  ticketPrice: number,
+  ticketCount: number,
+) {
+  return Math.round(
+    ticketPrice
+      * Math.max(1, ticketCount)
+      * performanceServicePercentage(performance),
+  ) / 100;
 }
 
 function normalizeBooking(item: Record<string, unknown>): Booking {
@@ -315,7 +356,13 @@ const [performanceDate, setPerformanceDate] =
     const unitPrice = performanceTicketPrice(selectedPerformance);
     const count = Math.max(1, Number(ticketCount) || 1);
     setTicketPrice(unitPrice.toFixed(2));
-    setServiceFee((Math.round(unitPrice * count * 0.03 * 100) / 100).toFixed(2));
+    setServiceFee(
+      performanceServiceFee(
+        selectedPerformance,
+        unitPrice + performanceAdditionalPrice(selectedPerformance),
+        count,
+      ).toFixed(2),
+    );
   }, [showBookingForm, selectedPerformance, ticketCount]);
 
   const bookings =
@@ -380,6 +427,11 @@ const [performanceDate, setPerformanceDate] =
                   ? "hall_2"
                   : "hall_1",
               price_from: Number(item.price_from || 0),
+              service_fee_percent: Number(
+                item.service_fee_percent
+                  ?? item.price_breakdown?.service_fee_percent
+                  ?? 0,
+              ),
               price_breakdown: item.price_breakdown,
             };
           });
@@ -1583,6 +1635,12 @@ const [performanceDate, setPerformanceDate] =
 
         service_fee:
           Number(data.service_fee ?? fee),
+
+        additional_fee:
+          Number(data.additional_fee ?? 0),
+
+        additional_items:
+          Array.isArray(data.additional_items) ? data.additional_items : [],
 
         status:
           "reserviert",
@@ -2855,7 +2913,7 @@ const [performanceDate, setPerformanceDate] =
             </label>
 
             <label>
-              Preis je Ticket vor Service
+              Ticketpreis je Ticket (ohne Zusatzkosten)
 
               <input
                 type="number"
@@ -3088,13 +3146,23 @@ const [performanceDate, setPerformanceDate] =
                     const nextValue = event.target.value;
                     const nextCount = Math.max(1, Number(nextValue) || 1);
                     setEditTicketCount(nextValue);
-                    setEditServiceFee((Math.round(Number(editTicketPrice) * nextCount * 0.03 * 100) / 100).toFixed(2));
+                    const editPerformance = performances.find(
+                      (performance) =>
+                        performance.id === editingBooking?.performanceId,
+                    );
+                    setEditServiceFee(
+                      performanceServiceFee(
+                        editPerformance,
+                        Number(editTicketPrice) + performanceAdditionalPrice(editPerformance),
+                        nextCount,
+                      ).toFixed(2),
+                    );
                   }}
                 />
               </label>
 
               <label>
-                Preis je Ticket vor Service
+                Ticketpreis je Ticket (ohne Zusatzkosten)
 
                 <input
                   type="number"

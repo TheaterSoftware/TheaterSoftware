@@ -3,6 +3,9 @@ import Dashboard from "./Dashboard";
 import BookingsPage from "./BookingsPage";
 import Performances from "./Performances";
 import UserAdmin from "./UserAdmin";
+import EmailTemplateSettings from "./EmailTemplateSettings";
+import TicketTemplateSettings from "./TicketTemplateSettings";
+import CheckinApp from "./CheckinApp";
 
 type LoginUser = {
   user_id: number;
@@ -68,6 +71,10 @@ export default function LoginGate({ children }: Props) {
       "true"
   );
 
+  const [showEmailSettings, setShowEmailSettings] = useState(false);
+  const [showTicketSettings, setShowTicketSettings] = useState(false);
+  const [showCheckin, setShowCheckin] = useState(false);
+
   async function handleLogin(event: FormEvent) {
     event.preventDefault();
     setError("");
@@ -100,6 +107,19 @@ export default function LoginGate({ children }: Props) {
         "theater.loggedInUser",
         JSON.stringify(data)
       );
+
+      if (data?.role === "checkin") {
+        localStorage.removeItem("theater.showTheaterApp");
+        localStorage.removeItem("theater.showPerformances");
+        localStorage.removeItem("theater.showUserAdmin");
+        setShowTheaterApp(false);
+        setShowPerformances(false);
+        setShowBookings(false);
+        setShowUserAdmin(false);
+        setShowEmailSettings(false);
+        setShowTicketSettings(false);
+        setShowCheckin(false);
+      }
 
       setUser(data);
       setPassword("");
@@ -246,6 +266,16 @@ export default function LoginGate({ children }: Props) {
 
   function logout() {
     localStorage.removeItem("theater.loggedInUser");
+    localStorage.removeItem("theater.showTheaterApp");
+    localStorage.removeItem("theater.showPerformances");
+    localStorage.removeItem("theater.showUserAdmin");
+    setShowTheaterApp(false);
+    setShowPerformances(false);
+    setShowBookings(false);
+    setShowUserAdmin(false);
+    setShowEmailSettings(false);
+    setShowTicketSettings(false);
+    setShowCheckin(false);
     setUser(null);
   }
 
@@ -269,6 +299,25 @@ export default function LoginGate({ children }: Props) {
       );
     };
   }, []);
+
+  if (user && user.role === "checkin") {
+    return (
+      <CheckinApp
+        userName={user.display_name || user.username}
+        onLogout={logout}
+      />
+    );
+  }
+
+  if (user && showCheckin && ["admin", "mitarbeiter"].includes(user.role)) {
+    return (
+      <CheckinApp
+        userName={user.display_name || user.username}
+        onBack={() => setShowCheckin(false)}
+        onLogout={logout}
+      />
+    );
+  }
 
   if (user && showTheaterApp) {
     return children;
@@ -303,6 +352,23 @@ export default function LoginGate({ children }: Props) {
     }
   }
 
+  if (user && showEmailSettings && user.role === "admin") {
+    return (
+      <EmailTemplateSettings
+        onBack={() => setShowEmailSettings(false)}
+      />
+    );
+  }
+
+
+  if (user && showTicketSettings && user.role === "admin") {
+    return (
+      <TicketTemplateSettings
+        onBack={() => setShowTicketSettings(false)}
+      />
+    );
+  }
+
   if (user && showPerformances) {
     return (
       <Performances
@@ -320,6 +386,7 @@ export default function LoginGate({ children }: Props) {
     return (
       <Dashboard
         userName={user.display_name || user.username}
+        isAdmin={user.role === "admin"}
         onOpenTheater={() => {
           localStorage.setItem(
             "theater.showTheaterApp",
@@ -348,6 +415,21 @@ export default function LoginGate({ children }: Props) {
             "true"
           );
           setShowUserAdmin(true);
+        }}
+        onOpenEmailSettings={() => {
+          if (user.role === "admin") {
+            setShowEmailSettings(true);
+          }
+        }}
+        onOpenTicketSettings={() => {
+          if (user.role === "admin") {
+            setShowTicketSettings(true);
+          }
+        }}
+        onOpenCheckin={() => {
+          if (["admin", "mitarbeiter"].includes(user.role)) {
+            setShowCheckin(true);
+          }
         }}
         onLogout={logout}
       />

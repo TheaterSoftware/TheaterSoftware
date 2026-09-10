@@ -1,18 +1,26 @@
 type DashboardProps = {
   userName: string;
+  isAdmin: boolean;
   onOpenTheater: () => void;
   onOpenPerformances: () => void;
   onOpenUserAdmin: () => void;
   onOpenBookings: () => void;
+  onOpenEmailSettings: () => void;
+  onOpenTicketSettings: () => void;
+  onOpenCheckin: () => void;
   onLogout: () => void;
 };
 
 export default function Dashboard({
   userName,
+  isAdmin,
   onOpenTheater,
   onOpenPerformances,
   onOpenUserAdmin,
   onOpenBookings,
+  onOpenEmailSettings,
+  onOpenTicketSettings,
+  onOpenCheckin,
   onLogout,
 }: DashboardProps) {
   return (
@@ -206,6 +214,85 @@ export default function Dashboard({
               zurücksetzen.
             </span>
           </button>
+
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={onOpenEmailSettings}
+              style={{
+                minHeight: "160px",
+                border: "1px solid #ddd",
+                borderRadius: "12px",
+                background: "#fff",
+                padding: "24px",
+                textAlign: "left",
+                cursor: "pointer",
+                color: "#000",
+              }}
+            >
+              <strong
+                style={{
+                  display: "block",
+                  fontSize: "20px",
+                  marginBottom: "8px",
+                }}
+              >
+                E-Mail-Vorlage
+              </strong>
+
+              <span style={{ color: "#666" }}>
+                Buchungsbestätigung gestalten und als Vorschau prüfen.
+              </span>
+            </button>
+          )}
+
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={onOpenCheckin}
+              style={{
+                minHeight: "160px",
+                border: "1px solid #ddd",
+                borderRadius: "12px",
+                background: "#fff",
+                padding: "24px",
+                textAlign: "left",
+                cursor: "pointer",
+                color: "#000",
+              }}
+            >
+              <strong style={{ display: "block", fontSize: "20px", marginBottom: "8px" }}>
+                Ticket Check-in
+              </strong>
+              <span style={{ color: "#666" }}>
+                QR-Tickets scannen und den Saalplan am Einlass einsehen.
+              </span>
+            </button>
+          )}
+
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={onOpenTicketSettings}
+              style={{
+                minHeight: "160px",
+                border: "1px solid #ddd",
+                borderRadius: "12px",
+                background: "#fff",
+                padding: "24px",
+                textAlign: "left",
+                cursor: "pointer",
+                color: "#000",
+              }}
+            >
+              <strong style={{ display: "block", fontSize: "20px", marginBottom: "8px" }}>
+                Ticket-Mail
+              </strong>
+              <span style={{ color: "#666" }}>
+                Ticket-Mail und Ticket-PDF mit QR-Code gestalten.
+              </span>
+            </button>
+          )}
         </div>
       </main>
     </div>

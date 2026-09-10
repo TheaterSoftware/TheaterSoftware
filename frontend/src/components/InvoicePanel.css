@@ -422,10 +422,16 @@
 .invoice-v2-preview {
   position: sticky;
   top: 16px;
+  display: grid;
+  gap: 20px;
   height: fit-content;
   border-radius: 15px;
   padding: 20px;
   background: #d9d2cb;
+}
+
+.invoice-v2-tax-page > p {
+  line-height: 1.55;
 }
 
 .invoice-v2-paper {
