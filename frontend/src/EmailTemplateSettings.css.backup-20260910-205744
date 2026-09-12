@@ -534,14 +534,10 @@
 .ticket-data-color-inputs input[type="color"] { height: 44px; padding: 4px; cursor: pointer; }
 .ticket-data-color-inputs input[type="text"] { height: 44px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; text-transform: uppercase; }
 .ticket-data-controls > small { display: block; margin-top: 14px; color: #71686d; line-height: 1.45; }
-.email-preview-column { min-width: 0; align-self: stretch; }
 .ticket-pdf-preview { height: 520px; background: #3a3739; border-radius: 12px; overflow: hidden; margin-bottom: 14px; display: grid; place-items: center; color: #fff; }
 .ticket-pdf-preview iframe { width: 100%; height: 100%; border: 0; background: #fff; }
 .email-preview-toolbar { gap: 10px; }
 .email-preview-toolbar .secondary { padding: 7px 10px; font-size: 12px; }
-.ticket-template-preview-column .email-preview-sticky { position: static; }
-.ticket-template-preview-column .ticket-pdf-preview { height: clamp(760px, 88vh, 1040px); }
-.ticket-template-preview-column .email-preview-canvas { max-height: none; overflow: visible; }
 @media (max-width: 1100px) {
   .email-settings-eventbar { grid-template-columns: 1fr; align-items: stretch; }
   .email-settings-three-columns { grid-template-columns: 1fr; }
@@ -553,14 +549,4 @@
   .ticket-data-slider-grid { grid-template-columns: 1fr; }
   .ticket-data-color-control > span:first-child { align-items: flex-start; flex-direction: column; }
   .ticket-data-color-inputs { grid-template-columns: 54px 1fr; }
-}
-@media (max-width: 1050px) {
-  .ticket-template-preview-column .ticket-pdf-preview { height: clamp(680px, 86vh, 900px); }
-}
-
-/* Lesbare Überschriften auf den hellen Flächen der Vorlagenverwaltung. */
-.email-settings-page .email-settings-header h1,
-.email-settings-page .email-settings-section-title h2 {
-  color: #000000 !important;
-  -webkit-text-fill-color: #000000 !important;
 }

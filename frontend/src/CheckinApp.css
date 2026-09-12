@@ -196,6 +196,8 @@
 .checkin-section-heading h2 {
   margin: 0;
   font-size: 22px;
+  color: #000 !important;
+  -webkit-text-fill-color: #000 !important;
 }
 
 .checkin-section-heading p {
@@ -327,6 +329,7 @@
   flex-direction: column;
   justify-content: center;
   border-top: 8px solid var(--checkin-pink);
+  color: #000;
 }
 
 .checkin-result.empty {
@@ -384,13 +387,15 @@
   font-size: 12px;
   font-weight: 900;
   letter-spacing: 1.4px;
-  color: #6a6065;
+  color: #000;
 }
 
 .checkin-result h2 {
   margin: 7px 0 17px;
   font-size: 24px;
   line-height: 1.18;
+  color: #000 !important;
+  -webkit-text-fill-color: #000 !important;
 }
 
 .checkin-result dl {
@@ -408,7 +413,7 @@
 }
 
 .checkin-result dt {
-  color: #746970;
+  color: #000;
   font-size: 13px;
 }
 
@@ -416,6 +421,7 @@
   margin: 0;
   font-weight: 700;
   word-break: break-word;
+  color: #000;
 }
 
 .checkin-button.result-next {

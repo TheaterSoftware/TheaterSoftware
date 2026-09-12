@@ -314,11 +314,9 @@ export default function CheckinApp({ userName, onLogout, onBack }: Props) {
       } catch (err) {
         setResult(null);
         setError(err instanceof Error ? err.message : "Ticket konnte nicht geprüft werden.");
+        scanLockRef.current = false;
       } finally {
         setScanBusy(false);
-        window.setTimeout(() => {
-          scanLockRef.current = false;
-        }, 900);
       }
     },
     [mode, refreshHall, refreshPerformances, selectedPerformanceId]
@@ -462,6 +460,7 @@ export default function CheckinApp({ userName, onLogout, onBack }: Props) {
               setResult(null);
               setHall(null);
               lastSeenRef.current = null;
+              scanLockRef.current = false;
             }}
           >
             {performances.length === 0 && <option value="">Keine Vorstellung vorhanden</option>}
@@ -607,6 +606,7 @@ export default function CheckinApp({ userName, onLogout, onBack }: Props) {
                     type="button"
                     className="checkin-button result-next"
                     onClick={() => {
+                      scanLockRef.current = false;
                       setResult(null);
                       lastSeenRef.current = null;
                     }}

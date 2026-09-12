@@ -143,12 +143,6 @@ export default function TicketTemplateSettings({ onBack }: Props) {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const fileRef = useRef<HTMLInputElement | null>(null);
-  const previewAbortRef = useRef<AbortController | null>(null);
-  const previewRequestRef = useRef(0);
-  const previewTimerRef = useRef<number | null>(null);
-  const latestPreviewRef = useRef<{ performanceId: number; settings: TicketSettings } | null>(null);
-  const lastPreviewStartedRef = useRef(0);
-  const loadedPerformanceIdRef = useRef<number | null>(null);
 
   const loggedInUser = useMemo(() => {
     try { return JSON.parse(localStorage.getItem("theater.loggedInUser") || "{}"); }
@@ -166,33 +160,17 @@ export default function TicketTemplateSettings({ onBack }: Props) {
   );
 
   const clearPreview = useCallback(() => {
-    if (previewTimerRef.current !== null) {
-      window.clearTimeout(previewTimerRef.current);
-      previewTimerRef.current = null;
-    }
-    latestPreviewRef.current = null;
-    previewRequestRef.current += 1;
-    previewAbortRef.current?.abort();
-    previewAbortRef.current = null;
     setPreviewUrl((current) => {
       if (current) URL.revokeObjectURL(current);
       return "";
     });
   }, []);
 
-  const refreshPreview = useCallback(async (performanceId: number, previewSettings: TicketSettings) => {
-    const requestId = previewRequestRef.current + 1;
-    previewRequestRef.current = requestId;
-    previewAbortRef.current?.abort();
-    const controller = new AbortController();
-    previewAbortRef.current = controller;
+  const refreshPreview = useCallback(async (performanceId: number) => {
     setPreviewLoading(true);
     try {
       const response = await fetch(`/api/admin/ticket-event-templates/${performanceId}/preview.pdf`, {
-        method: "POST",
-        headers: { ...authHeaders, "Content-Type": "application/json" },
-        body: JSON.stringify(previewSettings),
-        signal: controller.signal,
+        headers: authHeaders,
       });
       if (!response.ok) {
         const data = await response.json().catch(() => null);
@@ -200,27 +178,18 @@ export default function TicketTemplateSettings({ onBack }: Props) {
       }
       const blob = await response.blob();
       const nextUrl = URL.createObjectURL(blob);
-      if (requestId !== previewRequestRef.current) {
-        URL.revokeObjectURL(nextUrl);
-        return;
-      }
       setPreviewUrl((current) => {
         if (current) URL.revokeObjectURL(current);
         return nextUrl;
       });
     } catch (err) {
-      if ((err as { name?: string })?.name === "AbortError") return;
       setError(err instanceof Error ? err.message : "Ticket-Vorschau konnte nicht erstellt werden.");
     } finally {
-      if (requestId === previewRequestRef.current) {
-        previewAbortRef.current = null;
-        setPreviewLoading(false);
-      }
+      setPreviewLoading(false);
     }
   }, [authHeaders]);
 
   const loadTemplate = useCallback(async (performanceId: number) => {
-    loadedPerformanceIdRef.current = null;
     setLoading(true); setError(""); setMessage(""); clearPreview();
     try {
       const response = await fetch(`/api/admin/ticket-event-templates/${performanceId}`, {
@@ -249,11 +218,11 @@ export default function TicketTemplateSettings({ onBack }: Props) {
         is_event_specific: Boolean(data?.is_event_specific),
         updated_at: data?.updated_at || null,
       });
-      loadedPerformanceIdRef.current = performanceId;
+      await refreshPreview(performanceId);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Event-Ticketvorlage konnte nicht geladen werden.");
     } finally { setLoading(false); }
-  }, [authHeaders, clearPreview]);
+  }, [authHeaders, clearPreview, refreshPreview]);
 
   useEffect(() => {
     let active = true;
@@ -279,37 +248,6 @@ export default function TicketTemplateSettings({ onBack }: Props) {
   useEffect(() => {
     if (selectedPerformanceId) void loadTemplate(selectedPerformanceId);
   }, [selectedPerformanceId, loadTemplate]);
-
-  useEffect(() => {
-    const canPreview = (
-      !selectedPerformanceId
-      ? false
-      : !loading
-        && loadedPerformanceIdRef.current === selectedPerformanceId
-        && /^#[0-9A-Fa-f]{6}$/.test(settings.ticket_data_label_color)
-    );
-    if (!canPreview || !selectedPerformanceId) {
-      latestPreviewRef.current = null;
-      if (previewTimerRef.current !== null) {
-        window.clearTimeout(previewTimerRef.current);
-        previewTimerRef.current = null;
-      }
-      return;
-    }
-
-    latestPreviewRef.current = { performanceId: selectedPerformanceId, settings };
-    if (previewTimerRef.current !== null) return;
-
-    const elapsed = Date.now() - lastPreviewStartedRef.current;
-    const delay = Math.max(0, 180 - elapsed);
-    previewTimerRef.current = window.setTimeout(() => {
-      previewTimerRef.current = null;
-      const latest = latestPreviewRef.current;
-      if (!latest) return;
-      lastPreviewStartedRef.current = Date.now();
-      void refreshPreview(latest.performanceId, latest.settings);
-    }, delay);
-  }, [loading, refreshPreview, selectedPerformanceId, settings]);
 
   function update<K extends keyof TicketSettings>(key: K, value: TicketSettings[K]) {
     setSettings((current) => ({ ...current, [key]: value }));
@@ -344,8 +282,7 @@ export default function TicketTemplateSettings({ onBack }: Props) {
       setSettings((current) => ({ ...current, ...stored }));
       setMeta((current) => ({ ...current, is_event_specific: true }));
       setMessage(`Vorlage für „${selectedPerformance?.title || "Event"}“ wurde gespeichert.`);
-      const normalized = { ...settings, ...stored };
-      await refreshPreview(selectedPerformanceId, normalized);
+      await refreshPreview(selectedPerformanceId);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Event-Ticketvorlage konnte nicht gespeichert werden.");
     } finally { setSaving(false); }
@@ -374,7 +311,7 @@ export default function TicketTemplateSettings({ onBack }: Props) {
       });
       setMessage(`Ticketgrafik „${file.name}“ wurde für dieses Event hinterlegt.`);
       if (fileRef.current) fileRef.current.value = "";
-      await refreshPreview(selectedPerformanceId, settings);
+      await refreshPreview(selectedPerformanceId);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ticketgrafik konnte nicht hochgeladen werden.");
     } finally { setUploading(false); }
@@ -392,7 +329,7 @@ export default function TicketTemplateSettings({ onBack }: Props) {
       if (!response.ok) throw new Error(responseMessage(data, "Ticketgrafik konnte nicht entfernt werden."));
       setMeta((current) => ({ ...current, has_background: false, background_original_name: "", background_mime_type: "" }));
       setMessage("Ticketgrafik wurde entfernt. Das Standardticket wird wieder verwendet.");
-      await refreshPreview(selectedPerformanceId, settings);
+      await refreshPreview(selectedPerformanceId);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ticketgrafik konnte nicht entfernt werden.");
     } finally { setUploading(false); }
@@ -423,10 +360,10 @@ export default function TicketTemplateSettings({ onBack }: Props) {
         method: "POST", headers: authHeaders,
       });
       const data = await response.json().catch(() => null);
-      if (!response.ok) throw new Error(responseMessage(data, "Test-Ticket konnte nicht gesendet werden."));
-      setMessage(`${data?.message || "Test-Ticket mit PDF-Anhang wurde gesendet."} Empfänger: ${data?.recipient || "EMAIL_TEST_RECIPIENT"}`);
+      if (!response.ok) throw new Error(responseMessage(data, "Testmail konnte nicht gesendet werden."));
+      setMessage(`${data?.message || "Testmail wurde gesendet."} Empfänger: ${data?.recipient || "EMAIL_TEST_RECIPIENT"}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Test-Ticket konnte nicht gesendet werden.");
+      setError(err instanceof Error ? err.message : "Testmail konnte nicht gesendet werden.");
     } finally { setSending(false); }
   }
 
@@ -477,7 +414,7 @@ export default function TicketTemplateSettings({ onBack }: Props) {
           <span>{selectedPerformance?.venue_name || "Veranstaltungsort wird aus dem Event übernommen"}</span>
         </div>
         <button type="button" className="primary" onClick={() => void sendTestMail()} disabled={!selectedPerformanceId || sending || loading}>
-          {sending ? "Test-Ticket wird gesendet …" : "Test-Ticket per E-Mail senden"}
+          {sending ? "Testmail wird gesendet …" : "Testmail an Mailpit senden"}
         </button>
       </section>
 
@@ -573,10 +510,10 @@ export default function TicketTemplateSettings({ onBack }: Props) {
             <button className="email-settings-mobile-save primary" disabled={saving}>{saving ? "Wird gespeichert …" : "Eventvorlage speichern"}</button>
           </form>
 
-          <aside className="email-preview-column ticket-template-preview-column"><div className="email-preview-sticky">
-            <div className="email-preview-toolbar"><div><strong>Ticket-PDF-Vorschau</strong><span>{previewLoading ? "Live-Aktualisierung läuft …" : `${selectedPerformance?.title || "ausgewähltes Event"} · live`}</span></div><button type="button" className="secondary" onClick={() => selectedPerformanceId && void refreshPreview(selectedPerformanceId, settings)} disabled={previewLoading}>{previewLoading ? "Wird aktualisiert …" : "Neu laden"}</button></div>
+          <aside className="email-preview-column"><div className="email-preview-sticky">
+            <div className="email-preview-toolbar"><div><strong>Ticket-PDF-Vorschau</strong><span>{selectedPerformance?.title || "ausgewähltes Event"}</span></div><button type="button" className="secondary" onClick={() => selectedPerformanceId && void refreshPreview(selectedPerformanceId)} disabled={previewLoading}>{previewLoading ? "…" : "Neu laden"}</button></div>
             <div className="ticket-pdf-preview">
-              {previewUrl ? <iframe title="Ticket-PDF-Vorschau" src={`${previewUrl}#toolbar=0&navpanes=0&scrollbar=0&view=Fit&zoom=page-fit`} /> : <div>PDF-Vorschau wird erstellt …</div>}
+              {previewUrl ? <iframe title="Ticket-PDF-Vorschau" src={previewUrl} /> : <div>PDF-Vorschau wird erstellt …</div>}
             </div>
             <div className="email-preview-subject"><span>Mail-Betreff</span><strong>{previewSubject}</strong></div>
             <div className="email-preview-canvas" style={{ background: settings.background_color, color: settings.text_color, fontFamily: FONT_CSS[settings.font_family] || FONT_CSS.arial }}>

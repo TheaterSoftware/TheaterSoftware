@@ -123,11 +123,3 @@ select,
 textarea {
   color: #000;
 }
-
-/* Shared wrapping defaults for text buttons, including future screens. */
-button {
-  box-sizing: border-box;
-  min-width: 0;
-  overflow-wrap: anywhere;
-  white-space: normal;
-}

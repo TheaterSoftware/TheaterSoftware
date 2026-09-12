@@ -1,5 +1,3 @@
-import "./Dashboard.css";
-
 type DashboardProps = {
   userName: string;
   isAdmin: boolean;
@@ -33,8 +31,6 @@ export default function Dashboard({
 }: DashboardProps) {
   return (
     <div
-      className="dashboard-page"
-      lang="de"
       style={{
         minHeight: "100vh",
         background: "#f7f7f7",
@@ -96,11 +92,10 @@ export default function Dashboard({
         }}
       >
         <div
-          className="dashboard-grid"
           style={{
             display: "grid",
             gridTemplateColumns:
-              "repeat(auto-fit, minmax(min(100%, 240px), 1fr))",
+              "repeat(auto-fit, minmax(240px, 1fr))",
             gap: "20px",
           }}
         >

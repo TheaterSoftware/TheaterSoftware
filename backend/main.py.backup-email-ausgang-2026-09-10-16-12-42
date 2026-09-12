@@ -1,7 +1,7 @@
 from datetime import date, time, datetime, timedelta, timezone
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, Response, HTMLResponse, RedirectResponse
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, Field
 import psycopg
 from psycopg.types.json import Jsonb
@@ -14,7 +14,6 @@ import os
 import re
 import sys
 import copy
-import threading
 import smtplib
 import ssl
 import stripe
@@ -2167,11 +2166,8 @@ def startup():
     ensure_ticket_event_templates_table()
     ensure_ticket_passes_table()
     ensure_public_checkout_tables()
-    ensure_reservation_payments_table()
-    ensure_reservation_templates()
     migrate_booking_additional_costs()
     backfill_paid_online_staff_seats()
-    start_reservation_reminder_worker()
 
 
 def write_activity(
@@ -5711,8 +5707,6 @@ async def public_stripe_webhook(request: Request):
     event = stripe_payload_to_dict(event)
     event_type = event.get("type")
     session = stripe_payload_to_dict(event["data"]["object"])
-    if (session.get("metadata") or {}).get("reservation_payment"):
-        return handle_reservation_payment_event(session, event_type, request)
     if event_type in {
         "checkout.session.completed",
         "checkout.session.async_payment_succeeded",
@@ -9785,7 +9779,7 @@ def load_invoice_email_context(invoice_id: int):
         "invoice_date": row[2],
         "gross_amount": Decimal(str(row[3] or 0)),
         "voucher_amount": Decimal(str(row[4] or 0)),
-        "amount_due": Decimal(str(row[5] if row[5] is not None else row[3] or 0)),
+        "amount_due": Decimal(str(row[5] or row[3] or 0)),
         "payment_status": row[6],
         "tax_breakdown": list(row[7] or []),
         "template": dict(row[8] or {}),
@@ -10767,21 +10761,10 @@ def booking_confirmation_html(context, settings=None):
         f"""
         <tr>
           <td style="padding:7px 0;color:#786f69;font-size:14px;vertical-align:top;width:42%;">{escaped(label)}</td>
-          <td style="padding:7px 0 7px 18px;color:{text_color};font-size:14px;font-weight:700;vertical-align:top;">{escaped(value)}</td>
+          <td style="padding:7px 0;color:{text_color};font-size:14px;font-weight:700;vertical-align:top;">{escaped(value)}</td>
         </tr>
         """
         for label, value in details
-    )
-
-    payment_cta = ""
-    if context.get("payment_url"):
-        payment_cta = f'''<tr><td align="center" style="padding:24px 36px 0;">
-        <a href="{escaped(context['payment_url'])}" style="display:inline-block;padding:16px 24px;background:{accent_color};color:#ffffff;text-decoration:none;border-radius:8px;font-weight:700;">Jetzt sicher mit Stripe bezahlen</a>
-        </td></tr>'''
-    preheader = (
-        "Ihre Tickets sind vorläufig reserviert. Bitte begleichen Sie den offenen Betrag."
-        if context.get("payment_url")
-        else f"Deine Zahlung für {context['event_title']} wurde erfolgreich bestätigt."
     )
 
     return f"""<!doctype html>
@@ -10793,7 +10776,7 @@ def booking_confirmation_html(context, settings=None):
   </head>
   <body style="margin:0;padding:0;background:{background_color};font-family:{font_family};color:{text_color};">
     <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">
-      {escaped(preheader)}
+      Deine Zahlung für {escaped(context['event_title'])} wurde erfolgreich bestätigt.
     </div>
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;background:{background_color};">
       <tr>
@@ -10845,7 +10828,6 @@ def booking_confirmation_html(context, settings=None):
                 </table>
               </td>
             </tr>
-            {payment_cta}
             <tr>
               <td style="padding:24px 36px 0;">
                 <p style="margin:0;font-size:15px;line-height:24px;color:#514943;">{escaped(delivery_note)}</p>
@@ -12608,7 +12590,7 @@ MESSAGE_TYPE_TICKETS = "stripe_paid_tickets"
 MESSAGE_TYPE_INVOICE = "stripe_paid_invoice"
 
 
-def reserve_message_delivery(context, message_type, *, force=False):
+def reserve_message_delivery(context, message_type):
     with psycopg.connect(DB_CONFIG) as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -12635,7 +12617,7 @@ def reserve_message_delivery(context, message_type, *, force=False):
             if not row:
                 raise RuntimeError("Der lokale E-Mail-Ausgang konnte nicht angelegt werden.")
             delivery_id, status, updated_at = row
-            if status == "sent" and not force:
+            if status == "sent":
                 return {"delivery_id": int(delivery_id), "send": False, "status": "sent"}
             if status == "sending" and updated_at and updated_at > datetime.now() - timedelta(minutes=5):
                 return {"delivery_id": int(delivery_id), "send": False, "status": "sending"}
@@ -12759,7 +12741,6 @@ def mark_invoice_email_sent(delivery_id: int):
                 """
                 UPDATE invoice_email_deliveries
                 SET status = 'sent', sent_at = CURRENT_TIMESTAMP,
-                    first_sent_at = COALESCE(first_sent_at, CURRENT_TIMESTAMP),
                     last_error = '', updated_at = CURRENT_TIMESTAMP
                 WHERE id = %s
                 """,
@@ -12835,8 +12816,6 @@ def prepare_and_send_paid_booking_confirmation(booking_id: int):
     """Versendet Bestätigung, Tickets und Rechnung als drei getrennte Offline-Mails."""
     invoice = ensure_paid_stripe_invoice(booking_id)
     base_context = load_invoice_email_context(invoice["invoice_id"])
-    if str(base_context.get("payment_status") or "").lower() != "bezahlt":
-        raise HTTPException(status_code=400, detail="Die Rechnung ist noch nicht bezahlt.")
     ticket_context = load_ticket_context(base_context)
     results = {}
     errors = []
@@ -12888,8 +12867,6 @@ def retry_ticket_email(booking_id: int, request: Request):
     require_staff(request)
     invoice = ensure_paid_stripe_invoice(booking_id)
     base_context = load_invoice_email_context(invoice["invoice_id"])
-    if str(base_context.get("payment_status") or "").lower() != "bezahlt":
-        raise HTTPException(status_code=400, detail="Die Rechnung ist noch nicht bezahlt.")
     if base_context.get("delivery_method") == "postal":
         raise HTTPException(status_code=400, detail="Für diese Buchung ist Postversand ausgewählt; es wird keine digitale Ticket-Mail versendet.")
     ticket_context = load_ticket_context(base_context)
@@ -12950,775 +12927,3 @@ def get_invoice_email_deliveries(request: Request):
         }
         for row in rows
     ]
-
-
-EMAIL_OUTBOX_TYPES = {
-    "reservation_reminder": {"message_type": "manual_reservation_final", "label": "Letzte Erinnerung (automatisch nach 5 Tagen)"},
-    "reservation": {
-        "message_type": "manual_reservation",
-        "label": "Reservierungsbestätigung mit Zahlungslink",
-    },
-    "booking_confirmation": {
-        "message_type": MESSAGE_TYPE_BOOKING_CONFIRMATION,
-        "label": "Buchungsbestätigung",
-    },
-    "tickets": {
-        "message_type": MESSAGE_TYPE_TICKETS,
-        "label": "Ticket-Mail",
-    },
-    "invoice": {
-        "message_type": MESSAGE_TYPE_INVOICE,
-        "label": "Rechnung",
-    },
-}
-
-
-class EmailOutboxSendRequest(BaseModel):
-    force: bool = False
-
-
-def latest_invoice_context_for_booking(booking_id: int):
-    with psycopg.connect(DB_CONFIG) as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT id
-                FROM invoices
-                WHERE booking_id = %s
-                  AND status NOT IN ('storniert', 'storno')
-                ORDER BY id DESC
-                LIMIT 1
-                """,
-                (booking_id,),
-            )
-            row = cur.fetchone()
-    if not row:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "Für diese Buchung wurde noch keine Rechnung vorbereitet. "
-                "Bitte zuerst die Rechnung in der Buchungsverwaltung erstellen."
-            ),
-        )
-    return load_invoice_email_context(int(row[0]))
-
-
-def mark_manual_message_delivery_failed(delivery_id: int, error):
-    error_text = str(error or "Unbekannter Versandfehler")[:1000]
-    with psycopg.connect(DB_CONFIG) as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                UPDATE invoice_email_deliveries
-                SET status = 'failed', last_error = %s,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE id = %s
-                """,
-                (error_text, delivery_id),
-            )
-        conn.commit()
-
-
-@app.get("/api/email-outbox")
-def get_email_outbox(request: Request):
-    """Zeigt vorbereitete und bereits versendete Mails je Buchung."""
-    require_staff(request)
-    with psycopg.connect(DB_CONFIG) as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT
-                    b.id,
-                    b.booking_number,
-                    b.status,
-                    b.delivery_method,
-                    b.ticket_count,
-                    c.first_name,
-                    c.last_name,
-                    c.email,
-                    p.title,
-                    p.performance_date,
-                    latest_invoice.id,
-                    latest_invoice.invoice_number,
-                    latest_invoice.invoice_date,
-                    latest_invoice.payment_status
-                FROM bookings b
-                JOIN customers c ON c.id = b.customer_id
-                JOIN performances p ON p.id = b.performance_id
-                LEFT JOIN LATERAL (
-                    SELECT i.id, i.invoice_number, i.invoice_date, i.payment_status
-                    FROM invoices i
-                    WHERE i.booking_id = b.id
-                      AND i.status NOT IN ('storniert', 'storno')
-                    ORDER BY i.id DESC
-                    LIMIT 1
-                ) latest_invoice ON TRUE
-                ORDER BY b.id DESC
-                LIMIT 200
-                """
-            )
-            booking_rows = cur.fetchall()
-            booking_ids = [int(row[0]) for row in booking_rows]
-            delivery_rows = []
-            payment_states = {}
-            if booking_ids:
-                cur.execute("""
-                    SELECT DISTINCT ON (p.booking_id) p.booking_id,
-                        CASE WHEN p.status IN ('paid','review') THEN p.status ELSE COALESCE(a.status,'open') END
-                    FROM reservation_payments p
-                    LEFT JOIN reservation_payment_attempts a ON a.token=p.token
-                    WHERE p.booking_id=ANY(%s)
-                    ORDER BY p.booking_id, (p.status='review') DESC, p.created_at DESC, a.created_at DESC
-                """, (booking_ids,))
-                payment_states = dict(cur.fetchall())
-                cur.execute(
-                    """
-                    SELECT
-                        booking_id, message_type, status, attempt_count,
-                        original_recipient, actual_recipient, last_error,
-                        sent_at, updated_at
-                    FROM invoice_email_deliveries
-                    WHERE booking_id = ANY(%s)
-                    """,
-                    (booking_ids,),
-                )
-                delivery_rows = cur.fetchall()
-
-    deliveries = {
-        (int(row[0]), str(row[1])): {
-            "status": row[2],
-            "attempt_count": int(row[3] or 0),
-            "original_recipient": row[4] or "",
-            "actual_recipient": row[5] or "",
-            "last_error": row[6] or "",
-            "sent_at": row[7].isoformat() if row[7] else None,
-            "updated_at": row[8].isoformat() if row[8] else None,
-        }
-        for row in delivery_rows
-    }
-
-    bookings = []
-    for row in booking_rows:
-        booking_id = int(row[0])
-        booking_status = str(row[2] or "").lower()
-        delivery_method = row[3] or "email"
-        invoice_ready = row[10] is not None
-        cancelled = booking_status in {"storniert", "storno"}
-        paid = booking_status == "bezahlt" and str(row[13] or "").lower() == "bezahlt"
-        messages = []
-        for key, definition in EMAIL_OUTBOX_TYPES.items():
-            stored = deliveries.get((booking_id, definition["message_type"]))
-            if key == "reservation_reminder" and not stored and (booking_id, "manual_reservation") not in deliveries:
-                continue
-            if key == "reservation" and paid and not stored:
-                continue
-            reason = ""
-            if key == "reservation_reminder":
-                reason = "Automatischer Versand fünf Tage nach der ersten Reservierungsmail, solange die Zahlung offen ist."
-            elif cancelled:
-                reason = "Die Buchung ist storniert."
-            elif not invoice_ready:
-                reason = "Bitte zuerst die Rechnung vorbereiten."
-            elif key == "reservation" and (booking_status == "bezahlt" or str(row[13] or "").lower() == "bezahlt"):
-                reason = "Die Zahlung ist bereits verbucht."
-            elif key != "reservation" and not paid:
-                reason = "Wird nach bestätigter Zahlung freigegeben."
-            elif key == "tickets" and delivery_method == "postal":
-                reason = "Für diese Buchung ist Postversand ausgewählt."
-            messages.append(
-                {
-                    "key": key,
-                    "label": definition["label"],
-                    "status": stored["status"] if stored else (
-                        "not_ready" if reason else "prepared"
-                    ),
-                    "attempt_count": stored["attempt_count"] if stored else 0,
-                    "original_recipient": (
-                        stored["original_recipient"] if stored else (row[7] or "")
-                    ),
-                    "actual_recipient": stored["actual_recipient"] if stored else "",
-                    "last_error": stored["last_error"] if stored else "",
-                    "sent_at": stored["sent_at"] if stored else None,
-                    "updated_at": stored["updated_at"] if stored else None,
-                    "can_send": not bool(reason),
-                    "unavailable_reason": reason,
-                }
-            )
-        bookings.append(
-            {
-                "booking_id": booking_id,
-                "booking_number": row[1] or f"Buchung {booking_id}",
-                "booking_status": row[2] or "",
-                "payment_state": payment_states.get(booking_id, ""),
-                "delivery_method": delivery_method,
-                "ticket_count": int(row[4] or 0),
-                "customer_name": f"{row[5] or ''} {row[6] or ''}".strip(),
-                "customer_email": row[7] or "",
-                "event_title": row[8] or "Veranstaltung",
-                "event_date": row[9].isoformat() if row[9] else None,
-                "invoice_id": int(row[10]) if row[10] is not None else None,
-                "invoice_number": row[11] or "",
-                "invoice_date": row[12].isoformat() if row[12] else None,
-                "messages": messages,
-            }
-        )
-
-    return {
-        "test_mode": bool(EMAIL_TEST_RECIPIENT),
-        "test_recipient": EMAIL_TEST_RECIPIENT,
-        "bookings": bookings,
-    }
-
-
-@app.post("/api/email-outbox/{booking_id}/{email_type}/send")
-def send_email_outbox_message(
-    booking_id: int,
-    email_type: str,
-    data: EmailOutboxSendRequest,
-    request: Request,
-):
-    """Versendet genau eine ausgewählte Nachricht bewusst manuell."""
-    require_staff(request)
-    definition = EMAIL_OUTBOX_TYPES.get(email_type)
-    if not definition:
-        raise HTTPException(status_code=404, detail="Diese E-Mail-Art ist unbekannt.")
-    if email_type == "reservation_reminder":
-        raise HTTPException(status_code=400, detail="Die letzte Erinnerung wird automatisch nach fünf Tagen versendet.")
-
-    with psycopg.connect(DB_CONFIG) as conn:
-        with conn.cursor() as cur:
-            cur.execute("SELECT status FROM bookings WHERE id = %s", (booking_id,))
-            booking_row = cur.fetchone()
-    if not booking_row:
-        raise HTTPException(status_code=404, detail="Buchung nicht gefunden.")
-    if str(booking_row[0] or "").lower() in {"storniert", "storno"}:
-        raise HTTPException(status_code=400, detail="Die Buchung ist storniert.")
-
-    context = latest_invoice_context_for_booking(booking_id)
-    paid = str(booking_row[0] or "").lower() == "bezahlt" and str(context.get("payment_status") or "").lower() == "bezahlt"
-    if email_type != "reservation" and not paid:
-        raise HTTPException(status_code=400, detail="Bitte zuerst die Reservierungsbestätigung mit Zahlungslink senden. Die Zahlung ist noch nicht bestätigt.")
-    if email_type == "reservation":
-        context["payment_url"] = prepare_reservation_payment_link(booking_id)
-    if email_type == "tickets" and context.get("delivery_method") == "postal":
-        raise HTTPException(
-            status_code=400,
-            detail="Für diese Buchung ist Postversand ausgewählt.",
-        )
-
-    message_type = definition["message_type"]
-    delivery = reserve_message_delivery(context, message_type, force=data.force)
-    if not delivery["send"]:
-        return {
-            "success": delivery["status"] == "sent",
-            "status": delivery["status"],
-            "message": (
-                "Diese E-Mail wurde bereits versendet."
-                if delivery["status"] == "sent"
-                else "Der Versand läuft bereits."
-            ),
-        }
-
-    try:
-        if email_type == "reservation":
-            send_reservation_email(context)
-        elif email_type == "booking_confirmation":
-            send_offline_booking_confirmation_email(context)
-        elif email_type == "tickets":
-            ticket_context = load_ticket_context(context)
-            send_offline_ticket_email(
-                ticket_context,
-                ticket_pdf_bytes(ticket_context),
-            )
-        else:
-            send_offline_invoice_email(context, invoice_pdf_bytes(context))
-        mark_message_delivery_sent(delivery["delivery_id"])
-    except Exception as exc:
-        mark_manual_message_delivery_failed(delivery["delivery_id"], exc)
-        raise HTTPException(
-            status_code=502,
-            detail=f"{definition['label']} konnte nicht gesendet werden: {str(exc)[:400]}",
-        ) from exc
-
-    return {
-        "success": True,
-        "status": "sent",
-        "booking_id": booking_id,
-        "email_type": email_type,
-        "recipient": EMAIL_TEST_RECIPIENT or context.get("customer_email", ""),
-        "message": f"{definition['label']} wurde erfolgreich gesendet.",
-    }
-
-
-# Manuell angelegte Buchungen: Zahlungslink zur bestehenden Rechnung.
-# Eigene Tabellen verhindern, dass der öffentliche Shop eine zweite Buchung anlegt.
-def ensure_reservation_payments_table():
-    with psycopg.connect(DB_CONFIG) as conn:
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS reservation_payments (
-                token TEXT PRIMARY KEY,
-                booking_id INTEGER NOT NULL REFERENCES bookings(id),
-                invoice_id INTEGER NOT NULL REFERENCES invoices(id),
-                amount_cents BIGINT NOT NULL CHECK (amount_cents > 0),
-                status TEXT NOT NULL DEFAULT 'open',
-                created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-                UNIQUE (booking_id, invoice_id, amount_cents)
-            )
-        """)
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS reservation_payment_attempts (
-                id TEXT PRIMARY KEY,
-                token TEXT NOT NULL REFERENCES reservation_payments(token),
-                session_id TEXT UNIQUE,
-                checkout_url TEXT,
-                status TEXT NOT NULL DEFAULT 'creating',
-                created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-            )
-        """)
-        conn.execute("CREATE INDEX IF NOT EXISTS reservation_attempt_token_idx ON reservation_payment_attempts(token)")
-
-
-def reservation_invoice(cur, booking_id, invoice_id=None):
-    cur.execute("""
-        SELECT b.id, b.status, b.booking_number, i.id, i.payment_status,
-               i.amount_due, i.invoice_number
-        FROM bookings b JOIN invoices i ON i.booking_id=b.id
-        WHERE b.id=%s AND i.status NOT IN ('storniert','storno')
-        ORDER BY i.id DESC LIMIT 1 FOR UPDATE OF b, i
-    """, (booking_id,))
-    row = cur.fetchone()
-    if not row or str(row[1] or '').lower() in ('storniert', 'storno'):
-        raise HTTPException(409, "Die Reservierung oder Rechnung ist nicht mehr verfügbar.")
-    if invoice_id is not None and row[3] != invoice_id:
-        raise HTTPException(409, "Die Rechnung wurde ersetzt. Bitte fordere einen neuen Zahlungslink an.")
-    return {
-        'booking_id': row[0], 'booking_status': row[1], 'booking_number': row[2],
-        'invoice_id': row[3], 'payment_status': row[4],
-        'amount_cents': int((Decimal(str(row[5] or 0)) * 100).quantize(Decimal('1'))),
-        'invoice_number': row[6],
-    }
-
-
-def reservation_is_paid(invoice):
-    return 'bezahlt' in (str(invoice['booking_status']).lower(), str(invoice['payment_status']).lower())
-
-
-def prepare_reservation_payment_link(booking_id):
-    require_stripe_test_configuration()
-    with psycopg.connect(DB_CONFIG) as conn:
-        with conn.cursor() as cur:
-            invoice = reservation_invoice(cur, booking_id)
-            if reservation_is_paid(invoice):
-                raise HTTPException(409, "Diese Buchung ist bereits bezahlt.")
-            if invoice['amount_cents'] < 50:
-                raise HTTPException(400, "Für Stripe muss der offene Rechnungsbetrag mindestens 0,50 EUR betragen.")
-            cur.execute("""
-                INSERT INTO reservation_payments(token,booking_id,invoice_id,amount_cents)
-                VALUES (%s,%s,%s,%s)
-                ON CONFLICT (booking_id,invoice_id,amount_cents)
-                DO UPDATE SET booking_id=EXCLUDED.booking_id RETURNING token
-            """, (uuid4().hex, booking_id, invoice['invoice_id'], invoice['amount_cents']))
-            token = cur.fetchone()[0]
-    return f"{TICKETSHOP_BASE_URL.rstrip('/')}/api/public/reservation-payments/{token}"
-
-
-def reservation_template_defaults(performance_id):
-    settings = dict(load_email_event_template(performance_id))
-    settings.update({
-        'accent_color': '#cc0167',
-        'header_label': 'Deine Reservierung',
-        'success_heading': 'Reserviert – Zahlung noch offen',
-        'intro_text': 'Deine Tickets sind vorläufig reserviert. Die Buchung ist noch nicht bestätigt. '
-                      'Bitte begleiche den offenen Betrag möglichst bald über den Zahlungsbutton.',
-        'booking_heading': 'Dein Besuch', 'amount_label': 'Noch zu bezahlen',
-        'delivery_email_text': 'Nach bestätigter Zahlung erhältst du automatisch die Buchungsbestätigung, '
-                               'deine Tickets und die Rechnung per E-Mail. Bei SEPA kann die Bestätigung einige Tage dauern.',
-        'delivery_postal_text': 'Nach bestätigter Zahlung erhältst du die Bestätigung und Rechnung per E-Mail. '
-                                'Deine Tickets werden anschließend per Post versendet.',
-        'thank_you_text': 'Vielen Dank! Wir freuen uns auf deinen Besuch.',
-    })
-    settings.update({
-        'subject_template': 'Reservierung {booking_number} – Zahlung noch offen',
-        'reminder_subject': 'Letzte Erinnerung zur Reservierung {booking_number}',
-        'reminder_heading': 'Letzte Erinnerung – Zahlung noch offen',
-        'reminder_intro': 'Für deine Reservierung ist noch keine Zahlung eingegangen. Bitte begleiche den offenen Betrag möglichst bald über den Zahlungsbutton. Deine Buchung ist erst nach bestätigter Zahlung verbindlich bestätigt.',
-    })
-    return settings
-
-
-def send_reservation_email(context, reminder=False):
-    settings = reservation_render_settings(load_reservation_template(context.get('performance_id')), context, reminder)
-    message = EmailMessage()
-    message['Subject'] = settings['subject_template']
-    message['From'] = f"{settings['sender_name']} <{EMAIL_FROM_ADDRESS or SMTP_USERNAME}>"
-    message['To'] = EMAIL_TEST_RECIPIENT
-    message['Date'] = formatdate(localtime=True)
-    message['X-TheaterSoftware-Testmail'] = 'true'
-    message.set_content('\n\n'.join([
-        settings['intro_text'], f"Buchung: {context['booking_number']}",
-        f"Veranstaltung: {context['event_title']}",
-        f"Offener Betrag: {euro_text(context['amount_due'])}", context['payment_url'],
-        settings['delivery_postal_text'] if context.get('delivery_method') == 'postal' else settings['delivery_email_text'],
-        'Testbetrieb: Es wird kein echtes Geld abgebucht.',
-    ]))
-    message.add_alternative(booking_confirmation_html(context, settings), subtype='html')
-    smtp_send_message(message)
-
-
-def reservation_payment_page(text, token=None, amount=None):
-    button = ''
-    if token:
-        button = f'''<form method="post" action="/api/public/reservation-payments/{html_module.escape(token, quote=True)}/checkout">
-          <button>Im Stripe-Testmodus bezahlen · {html_module.escape(str(amount))}</button></form>'''
-    return HTMLResponse(f'''<!doctype html><html lang="de"><meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1"><title>Deine Reservierung</title>
-        <style>body{{font:18px/1.6 system-ui;background:#f6f2ee;color:#231f20;padding:24px}}
-        main{{max-width:540px;margin:8vh auto;background:white;padding:32px;border-radius:16px}}
-        button{{background:#8a1538;color:white;border:0;padding:16px;border-radius:8px;font:inherit;cursor:pointer}}</style>
-        <main><h1>Deine Reservierung</h1><p>{html_module.escape(text)}</p>{button}
-        <p><small>Stripe-Testbetrieb · Es wird kein echtes Geld abgebucht.</small></p></main></html>''',
-        headers={'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer', 'X-Robots-Tag': 'noindex, nofollow'})
-
-
-@app.get('/api/public/reservation-payments/{token}')
-def show_reservation_payment(token: str):
-    # GET erzeugt keine Stripe-Sitzung: Mail-Linkscanner lösen keine Zahlung aus.
-    with psycopg.connect(DB_CONFIG) as conn:
-        with conn.cursor() as cur:
-            cur.execute('SELECT booking_id,invoice_id,amount_cents,status FROM reservation_payments WHERE token=%s', (token,))
-            row = cur.fetchone()
-            if not row:
-                raise HTTPException(404, 'Zahlungslink nicht gefunden.')
-            try:
-                invoice = reservation_invoice(cur, row[0], row[1])
-            except HTTPException as exc:
-                return reservation_payment_page(exc.detail)
-            if row[3] == 'paid' or reservation_is_paid(invoice):
-                return reservation_payment_page('Deine Zahlung wurde bestätigt. Die Bestätigung und Rechnung werden per E-Mail versendet; digitale Tickets ebenfalls, sofern kein Postversand gewählt wurde.')
-            if row[3] == 'review':
-                return reservation_payment_page('Die Zahlung muss vom Theater geprüft werden. Bitte zahle nicht erneut und kontaktiere uns.')
-            if invoice['amount_cents'] != row[2]:
-                return reservation_payment_page('Der Rechnungsbetrag hat sich geändert. Bitte fordere beim Theater einen neuen Zahlungslink an.')
-            cur.execute("SELECT status FROM reservation_payment_attempts WHERE token=%s ORDER BY created_at DESC LIMIT 1", (token,))
-            attempt = cur.fetchone()
-            if attempt and attempt[0] == 'processing':
-                return reservation_payment_page('Deine Zahlung wird noch verarbeitet. Bei SEPA kann das einige Tage dauern. Bitte zahle nicht erneut. Nach Bestätigung versenden wir deine Unterlagen automatisch.')
-            return reservation_payment_page('Deine Tickets sind reserviert. Bitte begleiche den offenen Rechnungsbetrag. Nach der Zahlungsbestätigung senden wir deine Unterlagen automatisch.', token, euro_text(Decimal(row[2]) / 100))
-
-
-@app.post('/api/public/reservation-payments/{token}/checkout')
-def start_reservation_payment(token: str):
-    require_stripe_test_configuration()
-    # Ein dauerhaft gespeicherter Versuch erhält immer denselben Stripe-Idempotenzschlüssel.
-    # Auch nach einem Netzwerkfehler darf dadurch keine zweite Sitzung entstehen.
-    with psycopg.connect(DB_CONFIG) as conn:
-        with conn.cursor() as cur:
-            cur.execute('SELECT booking_id,invoice_id,amount_cents,status FROM reservation_payments WHERE token=%s FOR UPDATE', (token,))
-            payment = cur.fetchone()
-            if not payment:
-                raise HTTPException(404, 'Zahlungslink nicht gefunden.')
-            invoice = reservation_invoice(cur, payment[0], payment[1])
-            if reservation_is_paid(invoice) or payment[3] in ('paid','review'):
-                return RedirectResponse(f'/api/public/reservation-payments/{token}', status_code=303)
-            if invoice['amount_cents'] != payment[2]:
-                raise HTTPException(409, 'Der Rechnungsbetrag wurde geändert. Bitte fordere einen neuen Link an.')
-            # Keine parallelen Zahlungen über ältere Rechnungslinks derselben Buchung.
-            cur.execute("""SELECT a.id FROM reservation_payment_attempts a JOIN reservation_payments p ON p.token=a.token
-                WHERE p.booking_id=%s AND p.token<>%s AND a.status IN ('creating','open','processing') LIMIT 1""", (payment[0], token))
-            if cur.fetchone():
-                raise HTTPException(409, 'Für diese Buchung läuft bereits ein Zahlungsvorgang. Bitte kontaktiere das Theater.')
-            cur.execute('SELECT id,session_id,status,created_at FROM reservation_payment_attempts WHERE token=%s ORDER BY created_at DESC LIMIT 1', (token,))
-            attempt = cur.fetchone()
-            if attempt and attempt[2] == 'processing':
-                return reservation_payment_page('Deine Zahlung wird noch verarbeitet. Bitte zahle nicht erneut.')
-            if attempt and attempt[2] == 'open':
-                session = stripe_payload_to_dict(stripe.checkout.Session.retrieve(attempt[1], api_key=STRIPE_SECRET_KEY))
-                if session.get('status') == 'open':
-                    return RedirectResponse(session['url'], status_code=303)
-                if session.get('status') == 'complete':
-                    cur.execute("UPDATE reservation_payment_attempts SET status='processing' WHERE id=%s", (attempt[0],))
-                    return reservation_payment_page('Stripe hat deinen Zahlungsvorgang empfangen. Wir warten auf die bestätigte Rückmeldung. Bitte zahle nicht erneut.')
-                if session.get('status') != 'expired':
-                    raise HTTPException(409, 'Der Zahlungsstatus wird noch geprüft. Bitte versuche es später erneut.')
-                cur.execute("UPDATE reservation_payment_attempts SET status='expired' WHERE id=%s", (attempt[0],))
-                attempt = None
-            if not attempt or attempt[2] in ('expired','failed'):
-                attempt_id = uuid4().hex
-                cur.execute('INSERT INTO reservation_payment_attempts(id,token) VALUES(%s,%s)', (attempt_id, token))
-            elif attempt[2] == 'creating':
-                if (datetime.now(timezone.utc) - attempt[3]).total_seconds() > 23 * 3600:
-                    raise HTTPException(409, 'Ein früherer Zahlversuch konnte nicht abschließend geprüft werden. Bitte kontaktiere das Theater.')
-                attempt_id = attempt[0]
-            else:
-                return RedirectResponse(f'/api/public/reservation-payments/{token}', status_code=303)
-        conn.commit()
-        # Erneut sperren, damit konkurrierende POSTs dieselbe Sitzung verwenden.
-        with conn.cursor() as cur:
-            cur.execute('SELECT session_id FROM reservation_payment_attempts WHERE id=%s FOR UPDATE', (attempt_id,))
-            current = cur.fetchone()
-            if current[0]:
-                return RedirectResponse(f'/api/public/reservation-payments/{token}', status_code=303)
-            # Die Rechnung könnte zwischen den Transaktionen geändert worden sein.
-            fresh = reservation_invoice(cur, payment[0], payment[1])
-            if reservation_is_paid(fresh) or fresh['amount_cents'] != payment[2]:
-                raise HTTPException(409, 'Die Rechnung wurde inzwischen geändert. Bitte kontaktiere das Theater.')
-            base_url = f"{TICKETSHOP_BASE_URL.rstrip('/')}/api/public/reservation-payments/{token}"
-            metadata = {'reservation_payment': token, 'reservation_attempt': attempt_id}
-            session = stripe_payload_to_dict(stripe.checkout.Session.create(
-                api_key=STRIPE_SECRET_KEY, idempotency_key=f'reservation-{attempt_id}',
-                mode='payment', managed_payments={'enabled': False}, locale='de',
-                line_items=[{'price_data': {'currency': 'eur', 'unit_amount': payment[2],
-                    'product_data': {'name': f"Reservierung {invoice['booking_number']} – Rechnung {invoice['invoice_number']}"}}, 'quantity': 1}],
-                success_url=base_url, cancel_url=base_url, metadata=metadata,
-                payment_intent_data={'metadata': metadata},
-            ))
-            cur.execute("UPDATE reservation_payment_attempts SET session_id=%s,checkout_url=%s,status='open' WHERE id=%s",
-                        (session['id'], session['url'], attempt_id))
-    return RedirectResponse(session['url'], status_code=303)
-
-
-def handle_reservation_payment_event(session, event_type, request):
-    if event_type not in ('checkout.session.completed','checkout.session.async_payment_succeeded',
-                          'checkout.session.expired','checkout.session.async_payment_failed'):
-        return {'received': True}
-    if session.get('livemode') is not False:
-        raise HTTPException(400, 'Nur Stripe-Testzahlungen sind erlaubt.')
-    metadata = session.get('metadata') or {}
-    booking_id = None
-    paid = session.get('payment_status') == 'paid'
-    with psycopg.connect(DB_CONFIG) as conn:
-        with conn.cursor() as cur:
-            cur.execute('SELECT booking_id,invoice_id,amount_cents,status FROM reservation_payments WHERE token=%s FOR UPDATE', (metadata.get('reservation_payment'),))
-            payment = cur.fetchone()
-            if not payment:
-                raise HTTPException(400, 'Unbekannter Zahlungslink.')
-            cur.execute('SELECT id,session_id,status FROM reservation_payment_attempts WHERE id=%s AND token=%s FOR UPDATE',
-                        (metadata.get('reservation_attempt'), metadata.get('reservation_payment')))
-            attempt = cur.fetchone()
-            if not attempt or attempt[1] != session.get('id'):
-                # Stripe wiederholt die Meldung; ein noch laufender Create-Aufruf kann erst danach gespeichert sein.
-                raise HTTPException(409, 'Die Stripe-Sitzung ist noch nicht zugeordnet.')
-            if session.get('currency') != 'eur' or session.get('amount_total') != payment[2]:
-                raise HTTPException(400, 'Zahlungsbetrag oder Währung stimmen nicht überein.')
-            if payment[3] == 'paid':
-                booking_id = payment[0] if paid else None
-            elif paid and event_type in ('checkout.session.completed','checkout.session.async_payment_succeeded'):
-                try:
-                    invoice = reservation_invoice(cur, payment[0], payment[1])
-                    valid = invoice['amount_cents'] == payment[2] and not reservation_is_paid(invoice)
-                except HTTPException:
-                    valid = False
-                if not valid:
-                    cur.execute("UPDATE reservation_payments SET status='review' WHERE token=%s", (metadata['reservation_payment'],))
-                    cur.execute("UPDATE reservation_payment_attempts SET status='review' WHERE id=%s", (attempt[0],))
-                    return {'received': True, 'status': 'manual_review_required'}
-                cur.execute("UPDATE bookings SET status='bezahlt',stripe_checkout_session_id=%s WHERE id=%s", (session['id'], payment[0]))
-                cur.execute("UPDATE invoices SET payment_status='bezahlt' WHERE id=%s", (payment[1],))
-                cur.execute("UPDATE reservation_payments SET status='paid' WHERE token=%s", (metadata['reservation_payment'],))
-                cur.execute("UPDATE reservation_payment_attempts SET status='paid' WHERE id=%s", (attempt[0],))
-                booking_id = payment[0]
-            elif payment[3] != 'review' and attempt[2] not in ('paid','failed','expired','review'):
-                state = {'checkout.session.expired':'expired', 'checkout.session.async_payment_failed':'failed'}.get(event_type, 'processing')
-                cur.execute('UPDATE reservation_payment_attempts SET status=%s WHERE id=%s', (state, attempt[0]))
-    if booking_id is not None:
-        # Versandprotokoll schützt normale Webhook-Wiederholungen; Fehler bleiben erneut versendbar.
-        # Ein Fehler liefert 5xx, damit Stripe automatisch erneut zustellt.
-        prepare_and_send_paid_booking_confirmation(booking_id)
-    return {'received': True, 'status': 'paid' if booking_id else 'pending'}
-
-
-class ReservationTemplateUpdate(EmailTemplateSettingsUpdate):
-    reminder_subject: str = Field(min_length=1, max_length=240)
-    reminder_heading: str = Field(min_length=1, max_length=160)
-    reminder_intro: str = Field(min_length=1, max_length=1200)
-
-
-class ReservationPreviewRequest(BaseModel):
-    settings: ReservationTemplateUpdate
-    booking_id: int | None = None
-    reminder: bool = False
-
-
-def ensure_reservation_templates():
-    with psycopg.connect(DB_CONFIG) as conn:
-        conn.execute('''CREATE TABLE IF NOT EXISTS reservation_event_templates (
-            performance_id INTEGER PRIMARY KEY REFERENCES performances(id),
-            settings JSONB NOT NULL, updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-        )''')
-        conn.execute('ALTER TABLE invoice_email_deliveries ADD COLUMN IF NOT EXISTS first_sent_at TIMESTAMP WITHOUT TIME ZONE')
-        conn.execute('''UPDATE invoice_email_deliveries SET first_sent_at=sent_at
-            WHERE first_sent_at IS NULL AND sent_at IS NOT NULL''')
-
-
-def load_reservation_template(performance_id):
-    defaults = reservation_template_defaults(performance_id)
-    with psycopg.connect(DB_CONFIG) as conn:
-        row = conn.execute('SELECT settings FROM reservation_event_templates WHERE performance_id=%s', (performance_id,)).fetchone()
-    return {**defaults, **(row[0] if row else {})}
-
-
-def reservation_render_settings(settings, context, reminder=False):
-    rendered = dict(settings)
-    if reminder:
-        rendered.update(subject_template=settings['reminder_subject'],
-                        success_heading=settings['reminder_heading'], intro_text=settings['reminder_intro'])
-    return {key: render_email_template_text(value, context) for key, value in rendered.items()}
-
-
-@app.get('/api/reservation-templates/{performance_id}')
-def get_reservation_template(performance_id: int, request: Request):
-    require_staff(request)
-    return {'settings': load_reservation_template(performance_id), 'test_recipient': EMAIL_TEST_RECIPIENT}
-
-
-@app.put('/api/reservation-templates/{performance_id}')
-def save_reservation_template(performance_id: int, data: ReservationTemplateUpdate, request: Request):
-    require_admin(request)
-    performance_email_template_summary(performance_id)
-    settings = data.model_dump()
-    for key in ('sender_name','subject_template','reminder_subject'):
-        if '\n' in settings[key] or '\r' in settings[key]:
-            raise HTTPException(400, 'Absender und Betreff dürfen keinen Zeilenumbruch enthalten.')
-    if settings['font_family'] not in EMAIL_FONT_FAMILIES:
-        raise HTTPException(400, 'Unbekannte Schriftart.')
-    with psycopg.connect(DB_CONFIG) as conn:
-        with conn.cursor() as cur:
-            cur.execute('''INSERT INTO reservation_event_templates(performance_id,settings) VALUES(%s,%s)
-                ON CONFLICT(performance_id) DO UPDATE SET settings=EXCLUDED.settings,updated_at=now()''', (performance_id,Jsonb(settings)))
-            write_activity(cur,request,action='Reservierungsvorlage gespeichert',entity_type='reservation_template',
-                entity_id=performance_id,performance_id=performance_id,description='Vorlage für Reservierung und letzte Erinnerung gespeichert')
-    return {'success':True}
-
-
-@app.post('/api/reservation-templates/{performance_id}/preview')
-def preview_reservation_template(performance_id: int, data: ReservationPreviewRequest, request: Request):
-    require_staff(request)
-    summary = performance_email_template_summary(performance_id)
-    if data.booking_id:
-        context = latest_invoice_context_for_booking(data.booking_id)
-        if context['performance_id'] != performance_id:
-            raise HTTPException(400, 'Die Buchung gehört zu einer anderen Vorstellung.')
-    else:
-        context = dict(performance_id=performance_id, booking_number='BTD-VORSCHAU',
-            customer_first_name='Erika',customer_last_name='Muster',customer_email='vorschau@example.invalid',
-            event_title=summary['event_title'],event_date=date.fromisoformat(summary['event_date']) if summary['event_date'] else None,
-            event_time=time.fromisoformat(summary['event_time']) if summary['event_time'] else None,
-            ticket_count=2,amount_due=Decimal('99.80'),delivery_method='email')
-    context['payment_url'] = '#vorschau-keine-zahlung'
-    settings = reservation_render_settings(data.settings.model_dump(), context, data.reminder)
-    return {'html': booking_confirmation_html(context,settings), 'subject':settings['subject_template']}
-
-
-@app.get('/api/reservation-mail-bookings/{performance_id}')
-def get_reservation_mail_bookings(performance_id: int, request: Request):
-    require_staff(request)
-    with psycopg.connect(DB_CONFIG) as conn:
-        rows = conn.execute('''SELECT b.id,b.booking_number,c.first_name,c.last_name,b.status,
-            original.first_sent_at,final.sent_at,final.status,final.last_error,
-            original.first_sent_at + INTERVAL '5 days' AS reminder_due
-            FROM bookings b JOIN customers c ON c.id=b.customer_id
-            LEFT JOIN invoice_email_deliveries original ON original.booking_id=b.id AND original.message_type='manual_reservation'
-            LEFT JOIN invoice_email_deliveries final ON final.booking_id=b.id AND final.message_type='manual_reservation_final'
-            WHERE b.performance_id=%s ORDER BY b.id DESC''', (performance_id,)).fetchall()
-    return {'bookings':[dict(id=r[0],number=r[1],name=f'{r[2] or ""} {r[3] or ""}'.strip(),status=r[4],
-        first_sent=str(r[5]) if r[5] else None,reminder_sent=str(r[6]) if r[6] else None,
-        reminder_status=r[7],reminder_error=r[8],reminder_due=str(r[9]) if r[9] else None) for r in rows]}
-
-
-def reservation_reminder_eligible(invoice, payment, attempt_states):
-    return (not reservation_is_paid(invoice)
-            and str(invoice['booking_status']).lower() not in ('storniert','storno')
-            and invoice['invoice_id'] == payment[1]
-            and invoice['amount_cents'] == payment[2]
-            and payment[3] == 'open'
-            and not any(state in ('creating','processing','paid','review') for state in attempt_states))
-
-
-def run_reservation_reminders():
-    # Die Sperre auf der ursprünglichen Mail serialisiert parallele Worker.
-    # first_sent_at bleibt auch bei erneutem manuellen Versand unverändert.
-    with psycopg.connect(DB_CONFIG) as conn:
-        candidates = conn.execute('''SELECT original.id FROM invoice_email_deliveries original
-            JOIN bookings b ON b.id=original.booking_id
-            LEFT JOIN invoice_email_deliveries final ON final.booking_id=original.booking_id
-                AND final.message_type='manual_reservation_final'
-            WHERE original.message_type='manual_reservation'
-              AND original.first_sent_at <= CURRENT_TIMESTAMP - INTERVAL '5 days'
-              AND b.status NOT IN ('bezahlt','storniert','storno')
-              AND (final.id IS NULL OR (final.status <> 'sent' AND final.updated_at < CURRENT_TIMESTAMP - INTERVAL '1 hour'))
-            ORDER BY original.first_sent_at''').fetchall()
-    for (delivery_id,) in candidates:
-        if _reservation_reminder_stop.is_set():
-            break
-        try:
-            send_due_reservation_reminder(delivery_id)
-        except Exception as exc:
-            print(f'Reservierungserinnerung {delivery_id}: {type(exc).__name__}')
-
-
-def send_due_reservation_reminder(delivery_id):
-    with psycopg.connect(DB_CONFIG) as conn:
-        with conn.cursor() as cur:
-            cur.execute('''SELECT booking_id,invoice_id FROM invoice_email_deliveries
-                WHERE id=%s AND message_type='manual_reservation'
-                  AND first_sent_at <= CURRENT_TIMESTAMP - INTERVAL '5 days'
-                FOR UPDATE SKIP LOCKED''', (delivery_id,))
-            original = cur.fetchone()
-            if not original:
-                return
-            # Gleich wie beim Zahlungs-Webhook: Zahlungslink vor Buchung sperren.
-            cur.execute('''SELECT token,invoice_id,amount_cents,status FROM reservation_payments
-                WHERE booking_id=%s AND invoice_id=%s ORDER BY created_at DESC LIMIT 1 FOR UPDATE''', original)
-            payment = cur.fetchone()
-            if not payment:
-                return
-            invoice = reservation_invoice(cur,original[0],original[1])
-            cur.execute('''SELECT a.status,a.session_id FROM reservation_payment_attempts a
-                JOIN reservation_payments p ON p.token=a.token WHERE p.booking_id=%s''', (original[0],))
-            attempts = cur.fetchall()
-            if not reservation_reminder_eligible(invoice,payment,[a[0] for a in attempts]):
-                return
-            # Stripe prüfen, falls der Zahlungs-Webhook verspätet ist.
-            for status, session_id in attempts:
-                if status == 'open' and session_id:
-                    session = stripe_payload_to_dict(stripe.checkout.Session.retrieve(session_id,api_key=STRIPE_SECRET_KEY))
-                    if session.get('payment_status') == 'paid' or session.get('status') == 'complete':
-                        return
-            context = load_invoice_email_context(original[1])
-            context['payment_url'] = f"{TICKETSHOP_BASE_URL.rstrip('/')}/api/public/reservation-payments/{payment[0]}"
-            delivery = reserve_message_delivery(context,'manual_reservation_final')
-            if not delivery['send']:
-                return
-            try:
-                send_reservation_email(context,reminder=True)
-                mark_message_delivery_sent(delivery['delivery_id'])
-            except Exception as exc:
-                record_message_delivery_failure(context,'manual_reservation_final',exc)
-                raise
-
-
-_reservation_reminder_stop = threading.Event()
-_reservation_reminder_thread = None
-
-
-def start_reservation_reminder_worker():
-    global _reservation_reminder_thread
-    if _reservation_reminder_thread and _reservation_reminder_thread.is_alive():
-        return
-    _reservation_reminder_stop.clear()
-    def work():
-        while not _reservation_reminder_stop.is_set():
-            try:
-                run_reservation_reminders()
-            except Exception as exc:
-                print(f'Reservierungserinnerungen: {type(exc).__name__}')
-            _reservation_reminder_stop.wait(60)
-    _reservation_reminder_thread = threading.Thread(target=work,name='reservation-reminders',daemon=True)
-    _reservation_reminder_thread.start()
-
-
-@app.on_event('shutdown')
-def stop_reservation_reminder_worker():
-    _reservation_reminder_stop.set()
-    if _reservation_reminder_thread:
-        _reservation_reminder_thread.join(timeout=2)

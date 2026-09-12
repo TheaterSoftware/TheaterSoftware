@@ -1,0 +1,5 @@
+Die Vorschau bleibt rechts im sichtbaren Bildschirmbereich. Mit dem Mauszeiger über der Nachricht kann die komplette Mail unabhängig von den Eingaben links gescrollt werden. Auf schmalen Bildschirmen steht die Vorschau vor den Eingabefeldern.
+
+Vor dem Entpacken die beiden vorhandenen ReservationMail-Dateien sichern. ZIP in TheaterSoftware entpacken, im Unterordner frontend npm run build ausführen und die Seite neu laden. Kein Backend-Neustart erforderlich.
+
+Frontend-Build erfolgreich; visuelle Browserprüfung hier nicht verfügbar.

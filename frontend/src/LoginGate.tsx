@@ -6,6 +6,8 @@ import UserAdmin from "./UserAdmin";
 import EmailTemplateSettings from "./EmailTemplateSettings";
 import TicketTemplateSettings from "./TicketTemplateSettings";
 import CheckinApp from "./CheckinApp";
+import EmailOutbox from "./EmailOutbox";
+import ReservationMail from "./ReservationMail";
 
 type LoginUser = {
   user_id: number;
@@ -74,6 +76,8 @@ export default function LoginGate({ children }: Props) {
   const [showEmailSettings, setShowEmailSettings] = useState(false);
   const [showTicketSettings, setShowTicketSettings] = useState(false);
   const [showCheckin, setShowCheckin] = useState(false);
+  const [showEmailOutbox, setShowEmailOutbox] = useState(false);
+  const [showReservationMail, setShowReservationMail] = useState(false);
 
   async function handleLogin(event: FormEvent) {
     event.preventDefault();
@@ -119,6 +123,8 @@ export default function LoginGate({ children }: Props) {
         setShowEmailSettings(false);
         setShowTicketSettings(false);
         setShowCheckin(false);
+        setShowEmailOutbox(false);
+    setShowReservationMail(false);
       }
 
       setUser(data);
@@ -276,6 +282,8 @@ export default function LoginGate({ children }: Props) {
     setShowEmailSettings(false);
     setShowTicketSettings(false);
     setShowCheckin(false);
+    setShowEmailOutbox(false);
+    setShowReservationMail(false);
     setUser(null);
   }
 
@@ -317,6 +325,14 @@ export default function LoginGate({ children }: Props) {
         onLogout={logout}
       />
     );
+  }
+
+  if (user && showReservationMail && ["admin", "mitarbeiter"].includes(user.role)) {
+    return <ReservationMail isAdmin={user.role === "admin"} onBack={() => setShowReservationMail(false)} />;
+  }
+
+  if (user && showEmailOutbox && ["admin", "mitarbeiter"].includes(user.role)) {
+    return <EmailOutbox onBack={() => setShowEmailOutbox(false)} />;
   }
 
   if (user && showTheaterApp) {
@@ -387,6 +403,8 @@ export default function LoginGate({ children }: Props) {
       <Dashboard
         userName={user.display_name || user.username}
         isAdmin={user.role === "admin"}
+        onOpenReservationMail={() => setShowReservationMail(true)}
+        canManageEmailOutbox={["admin", "mitarbeiter"].includes(user.role)}
         onOpenTheater={() => {
           localStorage.setItem(
             "theater.showTheaterApp",
@@ -429,6 +447,11 @@ export default function LoginGate({ children }: Props) {
         onOpenCheckin={() => {
           if (["admin", "mitarbeiter"].includes(user.role)) {
             setShowCheckin(true);
+          }
+        }}
+        onOpenEmailOutbox={() => {
+          if (["admin", "mitarbeiter"].includes(user.role)) {
+            setShowEmailOutbox(true);
           }
         }}
         onLogout={logout}

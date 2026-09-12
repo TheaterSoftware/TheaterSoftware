@@ -1,0 +1,44 @@
+/* Keep navigation readable at narrow widths and enlarged text sizes. */
+.dashboard-page {
+  padding: clamp(16px, 4vw, 40px) !important;
+}
+.dashboard-page > header {
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.dashboard-page > header > div,
+.dashboard-page main,
+.dashboard-grid > button {
+  min-width: 0;
+}
+.dashboard-page h1 {
+  overflow-wrap: anywhere;
+}
+.dashboard-grid > button {
+  box-sizing: border-box;
+  width: 100%;
+  height: auto;
+  padding: clamp(16px, 2.5vw, 24px) !important;
+  white-space: normal !important;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+  line-height: 1.4;
+}
+.dashboard-grid > button strong {
+  font-size: clamp(18px, 1.6vw, 20px) !important;
+  line-height: 1.25;
+}
+.dashboard-grid > button span {
+  display: block;
+  font-size: 16px;
+  line-height: 1.4;
+}
+@media (max-width: 540px) {
+  .dashboard-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 12px !important;
+  }
+  .dashboard-grid > button {
+    min-height: 120px !important;
+  }
+}

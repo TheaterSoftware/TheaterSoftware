@@ -13325,7 +13325,6 @@ def prepare_reservation_payment_link(booking_id):
 def reservation_template_defaults(performance_id):
     settings = dict(load_email_event_template(performance_id))
     settings.update({
-        'accent_color': '#cc0167',
         'header_label': 'Deine Reservierung',
         'success_heading': 'Reserviert – Zahlung noch offen',
         'intro_text': 'Deine Tickets sind vorläufig reserviert. Die Buchung ist noch nicht bestätigt. '
